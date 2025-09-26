@@ -242,7 +242,7 @@ This is an **early access demo** version with sample data for evaluation purpose
 ## 📞 Contact
 
 **Francesco Ciardo** - Developer & Creator
-- Email: francesco.ciardo@coworkspace-pro.com
+- Email: iltuobrand@outlook.it
 - Project Link: [https://github.com/your-username/coworkspace-manager-pro](https://github.com/your-username/coworkspace-manager-pro)
 - Live Demo: [https://coworkspace-landing.vercel.app](https://coworkspace-landing.vercel.app)
 
@@ -256,3 +256,4 @@ This is an **early access demo** version with sample data for evaluation purpose
 ---
 
 **Built with ❤️ by Francesco Ciardo**
+
