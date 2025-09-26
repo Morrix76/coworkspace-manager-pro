@@ -1,0 +1,173 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id       String @id @default(cuid())
+  email    String @unique
+  password String
+  name     String
+  role     UserRole @default(RECEPTIONIST)
+  active   Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Space {
+  id          String @id @default(cuid())
+  name        String
+  type        SpaceType
+  capacity    Int
+  hourlyRate  Float
+  dailyRate   Float
+  monthlyRate Float
+  description String?
+  amenities   String[]
+  active      Boolean @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  bookings    Booking[]
+}
+
+model Client {
+  id        String @id @default(cuid())
+  email     String @unique
+  name      String
+  phone     String?
+  company   String?
+  vatNumber String?
+  address   String?
+  notes     String?
+  active    Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  bookings  Booking[]
+  contracts Contract[]
+  invoices  Invoice[]
+}
+
+model Booking {
+  id            String @id @default(cuid())
+  spaceId       String
+  clientId      String
+  startDateTime DateTime
+  endDateTime   DateTime
+  totalAmount   Float
+  status        BookingStatus @default(CONFIRMED)
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  space   Space @relation(fields: [spaceId], references: [id])
+  client  Client @relation(fields: [clientId], references: [id])
+  invoice Invoice?
+}
+
+model Contract {
+  id         String @id @default(cuid())
+  clientId   String
+  type       ContractType
+  startDate  DateTime
+  endDate    DateTime?
+  amount     Float
+  status     ContractStatus @default(ACTIVE)
+  content    String
+  signedDate DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  
+  client Client @relation(fields: [clientId], references: [id])
+}
+
+model Invoice {
+  id        String @id @default(cuid())
+  number    String @unique
+  clientId  String
+  bookingId String? @unique
+  amount    Float
+  taxAmount Float @default(0)
+  status    InvoiceStatus @default(PENDING)
+  dueDate   DateTime
+  paidDate  DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  client  Client @relation(fields: [clientId], references: [id])
+  booking Booking? @relation(fields: [bookingId], references: [id])
+  payments Payment[]
+}
+
+model Payment {
+  id        String @id @default(cuid())
+  invoiceId String
+  amount    Float
+  method    PaymentMethod
+  status    PaymentStatus @default(PENDING)
+  stripeId  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  invoice Invoice @relation(fields: [invoiceId], references: [id])
+}
+
+enum UserRole {
+  ADMIN
+  MANAGER
+  RECEPTIONIST
+  MAINTENANCE
+}
+
+enum SpaceType {
+  OFFICE
+  MEETING_ROOM
+  COWORKING
+  EVENT_SPACE
+}
+
+enum BookingStatus {
+  CONFIRMED
+  CHECKED_IN
+  CHECKED_OUT
+  CANCELLED
+}
+
+enum ContractType {
+  DOMICILIATION
+  VIRTUAL_OFFICE
+  LONG_TERM_RENTAL
+}
+
+enum ContractStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+}
+
+enum InvoiceStatus {
+  PENDING
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  BANK_TRANSFER
+  STRIPE
+  PAYPAL
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}

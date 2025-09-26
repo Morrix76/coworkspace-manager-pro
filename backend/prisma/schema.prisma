@@ -1,0 +1,339 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  currency  String   @default("USD")
+  timezone  String   @default("America/New_York")
+  settings  String   @default("{}")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Stripe subscription info
+  stripeCustomerId       String?   @unique
+  stripeSubscriptionId   String?   @unique
+  subscriptionStatus     String?   // active, canceled, past_due, etc.
+  subscriptionPlan       String?   // starter, professional, enterprise
+  subscriptionPeriodEnd  DateTime?
+  trialEnd              DateTime?
+
+  // Relationships
+  users     User[]
+  clients   Client[]
+  spaces    Space[]
+  bookings  Booking[]
+  invoices  Invoice[]
+  contracts Contract[]
+
+  @@map("organizations")
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  password     String
+  firstName    String
+  lastName     String
+  role         UserRole  @default(STAFF)
+  
+  // Email verification
+  emailVerified     Boolean   @default(false)
+  emailToken        String?   @unique
+  emailTokenExpiry  DateTime?
+  
+  // Password reset
+  passwordResetToken  String?   @unique
+  passwordResetExpiry DateTime?
+  
+  // User preferences and settings
+  preferences String @default("{}")
+  
+  // Timestamps
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  lastLoginAt DateTime?
+
+  // Organization relationship
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  // Activity tracking
+  bookings  Booking[]
+  invoices  Invoice[]
+  contracts Contract[]
+
+  @@map("users")
+}
+
+enum UserRole {
+  OWNER
+  ADMIN
+  MANAGER
+  STAFF
+}
+
+model Client {
+  id          String   @id @default(cuid())
+  firstName   String
+  lastName    String
+  email       String
+  phone       String?
+  company     String?
+  address     String?
+  city        String?
+  state       String?
+  zipCode     String?
+  country     String?
+  notes       String?
+  tags        String   @default("")
+  
+  // Contact preferences
+  preferredContact String? // email, phone, sms
+  marketingOptIn   Boolean @default(false)
+  
+  // Financial info
+  creditLimit      Float?
+  paymentTerms     Int?     @default(30) // days
+  
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Organization relationship
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  // Relationships
+  bookings  Booking[]
+  invoices  Invoice[]
+  contracts Contract[]
+
+  @@unique([email, organizationId])
+  @@map("clients")
+}
+
+model Space {
+  id          String    @id @default(cuid())
+  name        String
+  type        SpaceType
+  capacity    Int
+  hourlyRate  Float
+  dailyRate   Float
+  monthlyRate Float
+  description String?
+  amenities   String    @default("")
+  images      String    @default("")
+  isActive    Boolean   @default(true)
+  
+  // Location info
+  building String?
+  floor    String?
+  room     String?
+  
+  // Booking rules
+  minBookingHours    Int     @default(1)
+  maxBookingHours    Int     @default(24)
+  advanceBookingDays Int     @default(30)
+  requiresApproval   Boolean @default(false)
+  
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Organization relationship
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  // Relationships
+  bookings Booking[]
+
+  @@map("spaces")
+}
+
+enum SpaceType {
+  OFFICE
+  MEETING_ROOM
+  DESK
+  PHONE_BOOTH
+  EVENT_SPACE
+  COMMON_AREA
+}
+
+model Booking {
+  id          String        @id @default(cuid())
+  startDate   DateTime
+  endDate     DateTime
+  status      BookingStatus @default(CONFIRMED)
+  totalAmount Float
+  paidAmount  Float         @default(0)
+  notes       String?
+  
+  // Booking details
+  bookingType BookingType @default(HOURLY)
+  isRecurring Boolean     @default(false)
+  recurringRule String? // JSON string for recurring rules
+  
+  // Payment info
+  paymentStatus PaymentStatus @default(PENDING)
+  paymentMethod String?
+  stripePaymentIntentId String?
+  
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Organization relationship
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  // Relationships
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  
+  spaceId String
+  space   Space @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  
+  createdById String
+  createdBy   User @relation(fields: [createdById], references: [id])
+
+  @@map("bookings")
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+}
+
+enum BookingType {
+  HOURLY
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  PARTIAL
+  OVERDUE
+  CANCELLED
+}
+
+model Invoice {
+  id            String        @id @default(cuid())
+  invoiceNumber String        @unique
+  issueDate     DateTime      @default(now())
+  dueDate       DateTime
+  status        InvoiceStatus @default(DRAFT)
+  
+  // Amounts in USD
+  subtotal    Float
+  taxRate     Float @default(0)
+  taxAmount   Float @default(0)
+  totalAmount Float
+  paidAmount  Float @default(0)
+  
+  // Invoice details
+  items       String @default("[]") // JSON array of line items
+  notes       String?
+  terms       String?
+  
+  // Payment info
+  paymentDate   DateTime?
+  paymentMethod String?
+  stripeInvoiceId String?
+  
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Organization relationship
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  // Relationships
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  
+  createdById String
+  createdBy   User @relation(fields: [createdById], references: [id])
+
+  @@map("invoices")
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  VIEWED
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+model Contract {
+  id           String         @id @default(cuid())
+  title        String
+  type         ContractType
+  status       ContractStatus @default(DRAFT)
+  
+  // Contract terms
+  startDate    DateTime
+  endDate      DateTime?
+  monthlyRate  Float
+  depositAmount Float?
+  
+  // Contract details
+  terms        String?
+  attachments  String @default("")
+  signedDate   DateTime?
+  
+  // Auto-renewal
+  autoRenew    Boolean        @default(false)
+  renewalTerms String?
+  noticeDays   Int            @default(30)
+  
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Organization relationship
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  // Relationships
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  
+  createdById String
+  createdBy   User @relation(fields: [createdById], references: [id])
+
+  @@map("contracts")
+}
+
+enum ContractType {
+  MONTHLY
+  QUARTERLY
+  YEARLY
+  FIXED_TERM
+}
+
+enum ContractStatus {
+  DRAFT
+  PENDING_SIGNATURE
+  ACTIVE
+  EXPIRED
+  TERMINATED
+  CANCELLED
+}
