@@ -2,7 +2,7 @@
 
 A complete SaaS solution for coworking space management with real-time analytics, booking calendar, advanced CRM, automated billing, contract management, and smart reporting.
 
-![Dashboard Screenshot](frontend/public/dashboard_eng.png)
+![Dashboard Screenshot](screenshots/dashboard.png)
 
 ## 🚀 Live Demo
 
@@ -248,5 +248,6 @@ This is an **early access demo** version with sample data for evaluation purpose
 - All contributors and supporters of this project
 
 ---
+
 
 **Built with ❤️ by Francesco Ciardo**
