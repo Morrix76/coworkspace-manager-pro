@@ -132,6 +132,12 @@ The application comes pre-loaded with:
 ### Dashboard
 ![Dashboard](screenshots/dashboard.png)
 
+### Contract Management
+![Contracts](screenshots/contracts.png)
+
+### Billing & Invoices
+![Billing](screenshots/billing.png)
+
 ### Space Management
 ![Spaces](screenshots/spaces.png)
 
@@ -248,6 +254,5 @@ This is an **early access demo** version with sample data for evaluation purpose
 - All contributors and supporters of this project
 
 ---
-
 
 **Built with ❤️ by Francesco Ciardo**
