@@ -15,6 +15,7 @@ import reportsRoutes from './routes/reports.js'
 dotenv.config()
 
 const app = express()
+app.set('trust proxy', 1)
 const PORT = process.env.PORT || 5000
 
 app.use(helmet())
