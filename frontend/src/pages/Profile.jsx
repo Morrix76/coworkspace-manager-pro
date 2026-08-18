@@ -33,16 +33,18 @@ import {
 } from '@ant-design/icons'
 import { useSelector } from 'react-redux'
 import dayjs from 'dayjs'
+import { useTranslation } from 'react-i18next'
 
 const { Title, Text } = Typography
 const { Option } = Select
 
 function Profile() {
+  const { t, i18n } = useTranslation()
+  const formatCurrency = (amount) => new Intl.NumberFormat(i18n.language, { style: 'currency', currency: 'EUR' }).format(amount || 0)
   const [editing, setEditing] = useState(false)
   const [loading, setLoading] = useState(false)
   const [form] = Form.useForm()
   
-  // Dati utente dal Redux store o mock
   const user = useSelector(state => state.auth.user) || {
     id: 1,
     name: 'Admin User',
@@ -55,7 +57,6 @@ function Profile() {
     avatar: null
   }
 
-  // Statistiche utente mock
   const userStats = {
     totalBookings: 145,
     thisMonthBookings: 23,
@@ -66,14 +67,13 @@ function Profile() {
   const handleSave = async (values) => {
     setLoading(true)
     try {
-      // Simula salvataggio
       setTimeout(() => {
-        message.success('Profilo aggiornato con successo')
+        message.success(t('profile.updated'))
         setEditing(false)
         setLoading(false)
       }, 1000)
     } catch (error) {
-      message.error('Errore nel salvataggio')
+      message.error(t('profile.saveError'))
       setLoading(false)
     }
   }
@@ -85,17 +85,17 @@ function Profile() {
     beforeUpload: (file) => {
       const isJpgOrPng = file.type === 'image/jpeg' || file.type === 'image/png'
       if (!isJpgOrPng) {
-        message.error('Puoi caricare solo file JPG/PNG!')
+        message.error(t('profile.uploadJpgPng'))
       }
       const isLt2M = file.size / 1024 / 1024 < 2
       if (!isLt2M) {
-        message.error('L\'immagine deve essere inferiore a 2MB!')
+        message.error(t('profile.imageTooLarge'))
       }
       return isJpgOrPng && isLt2M
     },
     onChange: (info) => {
       if (info.file.status === 'done') {
-        message.success('Avatar aggiornato con successo')
+        message.success(t('profile.avatarUpdated'))
       }
     }
   }
@@ -110,34 +110,23 @@ function Profile() {
     return colors[role] || 'default'
   }
 
-  const getRoleLabel = (role) => {
-    const labels = {
-      ADMIN: 'Amministratore',
-      MANAGER: 'Manager',
-      RECEPTIONIST: 'Receptionist',
-      MAINTENANCE: 'Manutenzione'
-    }
-    return labels[role] || role
-  }
-
   return (
     <div>
       <Title level={2} style={{ marginBottom: 24 }}>
-        <UserOutlined /> Il Mio Profilo
+        <UserOutlined /> {t('profile.title')}
       </Title>
 
       <Row gutter={24}>
-        {/* Colonna Sinistra - Info Profilo */}
         <Col span={16}>
           <Card
-            title="Informazioni Personali"
+            title={t('profile.personalInfo')}
             extra={
               <Button 
                 type="primary" 
                 icon={<EditOutlined />}
                 onClick={() => setEditing(!editing)}
               >
-                {editing ? 'Annulla' : 'Modifica'}
+                {editing ? t('common.cancel') : t('common.edit')}
               </Button>
             }
           >
@@ -158,7 +147,7 @@ function Profile() {
                     {editing && (
                       <Upload {...uploadProps}>
                         <Button icon={<UploadOutlined />} size="small">
-                          Cambia Avatar
+                          {t('profile.changeAvatar')}
                         </Button>
                       </Upload>
                     )}
@@ -167,7 +156,7 @@ function Profile() {
                         {user.name}
                       </Title>
                       <Tag color={getRoleColor(user.role)}>
-                        {getRoleLabel(user.role)}
+                        {t(`enums.role.${user.role}`, { defaultValue: user.role })}
                       </Tag>
                     </div>
                   </Space>
@@ -176,8 +165,8 @@ function Profile() {
                 <Col span={12}>
                   <Form.Item
                     name="name"
-                    label="Nome Completo"
-                    rules={[{ required: true, message: 'Nome obbligatorio' }]}
+                    label={t('profile.fullName')}
+                    rules={[{ required: true, message: t('profile.nameRequired') }]}
                   >
                     <Input disabled={!editing} />
                   </Form.Item>
@@ -186,10 +175,10 @@ function Profile() {
                 <Col span={12}>
                   <Form.Item
                     name="email"
-                    label="Email"
+                    label={t('common.email')}
                     rules={[
-                      { required: true, message: 'Email obbligatoria' },
-                      { type: 'email', message: 'Email non valida' }
+                      { required: true, message: t('profile.emailRequired') },
+                      { type: 'email', message: t('profile.emailInvalid') }
                     ]}
                   >
                     <Input disabled={!editing} prefix={<MailOutlined />} />
@@ -197,24 +186,24 @@ function Profile() {
                 </Col>
 
                 <Col span={12}>
-                  <Form.Item name="phone" label="Telefono">
+                  <Form.Item name="phone" label={t('common.phone')}>
                     <Input disabled={!editing} prefix={<PhoneOutlined />} />
                   </Form.Item>
                 </Col>
 
                 <Col span={12}>
-                  <Form.Item name="department" label="Dipartimento">
+                  <Form.Item name="department" label={t('profile.department')}>
                     <Select disabled={!editing}>
-                      <Option value="Amministrazione">Amministrazione</Option>
-                      <Option value="Vendite">Vendite</Option>
-                      <Option value="Marketing">Marketing</Option>
-                      <Option value="Operativo">Operativo</Option>
+                      <Option value="Amministrazione">{t('profile.deptAdmin')}</Option>
+                      <Option value="Vendite">{t('profile.deptSales')}</Option>
+                      <Option value="Marketing">{t('profile.deptMarketing')}</Option>
+                      <Option value="Operativo">{t('profile.deptOps')}</Option>
                     </Select>
                   </Form.Item>
                 </Col>
 
                 <Col span={12}>
-                  <Form.Item name="joinDate" label="Data Assunzione">
+                  <Form.Item name="joinDate" label={t('profile.joinDate')}>
                     <DatePicker 
                       disabled={!editing} 
                       style={{ width: '100%' }}
@@ -224,7 +213,7 @@ function Profile() {
                 </Col>
 
                 <Col span={12}>
-                  <Form.Item label="Ultimo Accesso">
+                  <Form.Item label={t('profile.lastLogin')}>
                     <Input 
                       value={dayjs(user.lastLogin).format('DD/MM/YYYY HH:mm')} 
                       disabled 
@@ -245,10 +234,10 @@ function Profile() {
                         loading={loading}
                         icon={<SaveOutlined />}
                       >
-                        Salva Modifiche
+                        {t('profile.saveChanges')}
                       </Button>
                       <Button onClick={() => setEditing(false)}>
-                        Annulla
+                        {t('common.cancel')}
                       </Button>
                     </Space>
                   </Form.Item>
@@ -257,21 +246,20 @@ function Profile() {
             </Form>
           </Card>
 
-          {/* Card Cambio Password */}
-          <Card title="Sicurezza" style={{ marginTop: 24 }}>
+          <Card title={t('profile.security')} style={{ marginTop: 24 }}>
             <Form layout="vertical">
               <Row gutter={16}>
                 <Col span={8}>
-                  <Form.Item name="currentPassword" label="Password Attuale">
+                  <Form.Item name="currentPassword" label={t('settings.currentPassword')}>
                     <Input.Password />
                   </Form.Item>
                 </Col>
                 <Col span={8}>
                   <Form.Item 
                     name="newPassword" 
-                    label="Nuova Password"
+                    label={t('settings.newPassword')}
                     rules={[
-                      { min: 8, message: 'Minimo 8 caratteri' }
+                      { min: 8, message: t('profile.minChars') }
                     ]}
                   >
                     <Input.Password />
@@ -280,7 +268,7 @@ function Profile() {
                 <Col span={8}>
                   <Form.Item 
                     name="confirmPassword" 
-                    label="Conferma Password"
+                    label={t('settings.confirmPassword')}
                     dependencies={['newPassword']}
                     rules={[
                       ({ getFieldValue }) => ({
@@ -288,7 +276,7 @@ function Profile() {
                           if (!value || getFieldValue('newPassword') === value) {
                             return Promise.resolve()
                           }
-                          return Promise.reject('Le password non coincidono!')
+                          return Promise.reject(t('profile.passwordMismatch'))
                         }
                       })
                     ]}
@@ -298,95 +286,92 @@ function Profile() {
                 </Col>
               </Row>
               <Button type="primary" icon={<KeyOutlined />}>
-                Cambia Password
+                {t('profile.changePassword')}
               </Button>
             </Form>
           </Card>
         </Col>
 
-        {/* Colonna Destra - Statistiche */}
         <Col span={8}>
-          <Card title="Le Mie Statistiche" style={{ marginBottom: 24 }}>
+          <Card title={t('profile.myStats')} style={{ marginBottom: 24 }}>
             <Space direction="vertical" style={{ width: '100%' }}>
               <Statistic
-                title="Prenotazioni Totali"
+                title={t('profile.totalBookings')}
                 value={userStats.totalBookings}
                 prefix={<CalendarOutlined />}
               />
               <Divider />
               <Statistic
-                title="Questo Mese"
+                title={t('profile.thisMonth')}
                 value={userStats.thisMonthBookings}
                 prefix={<ClockCircleOutlined />}
                 valueStyle={{ color: '#52c41a' }}
               />
               <Divider />
               <Statistic
-                title="Ricavi Gestiti"
+                title={t('profile.managedRevenue')}
                 value={userStats.totalRevenue}
-                formatter={(value) => `${value.toFixed(2)}`}
+                formatter={(value) => formatCurrency(value)}
                 prefix={<TrophyOutlined />}
                 valueStyle={{ color: '#1890ff' }}
               />
               <Divider />
               <Statistic
-                title="Tempo Sessione Medio"
+                title={t('profile.avgSession')}
                 value={userStats.avgSessionTime}
                 prefix={<ClockCircleOutlined />}
               />
             </Space>
           </Card>
 
-          {/* Card Attività Recenti */}
-          <Card title="Attività Recenti">
+          <Card title={t('profile.recentActivity')}>
             <Space direction="vertical" style={{ width: '100%' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <Text>Login sistema</Text>
-                <Text type="secondary">2 ore fa</Text>
+                <Text>{t('profile.activityLogin')}</Text>
+                <Text type="secondary">{t('profile.hoursAgo', { count: 2 })}</Text>
               </div>
               <Divider />
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <Text>Prenotazione creata</Text>
-                <Text type="secondary">4 ore fa</Text>
+                <Text>{t('profile.activityBooking')}</Text>
+                <Text type="secondary">{t('profile.hoursAgo', { count: 4 })}</Text>
               </div>
               <Divider />
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <Text>Cliente aggiornato</Text>
-                <Text type="secondary">1 giorno fa</Text>
+                <Text>{t('profile.activityClient')}</Text>
+                <Text type="secondary">{t('profile.daysAgo', { count: 1 })}</Text>
               </div>
               <Divider />
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <Text>Fattura generata</Text>
-                <Text type="secondary">2 giorni fa</Text>
+                <Text>{t('profile.activityInvoice')}</Text>
+                <Text type="secondary">{t('profile.daysAgo', { count: 2 })}</Text>
               </div>
               <Divider />
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <Text>Report esportato</Text>
-                <Text type="secondary">3 giorni fa</Text>
+                <Text>{t('profile.activityReport')}</Text>
+                <Text type="secondary">{t('profile.daysAgo', { count: 3 })}</Text>
               </div>
             </Space>
           </Card>
 
-          {/* Card Preferenze */}
-          <Card title="Preferenze" style={{ marginTop: 24 }}>
+          <Card title={t('profile.preferences')} style={{ marginTop: 24 }}>
             <Space direction="vertical" style={{ width: '100%' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Text>Notifiche Email</Text>
+                <Text>{t('profile.emailNotifications')}</Text>
                 <Switch defaultChecked />
               </div>
               <Divider />
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Text>Notifiche Push</Text>
+                <Text>{t('profile.pushNotifications')}</Text>
                 <Switch />
               </div>
               <Divider />
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Text>Tema Scuro</Text>
+                <Text>{t('profile.darkTheme')}</Text>
                 <Switch />
               </div>
               <Divider />
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Text>Auto-logout</Text>
+                <Text>{t('profile.autoLogout')}</Text>
                 <Switch defaultChecked />
               </div>
             </Space>

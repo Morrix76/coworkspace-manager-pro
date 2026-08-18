@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import {
   Typography,
   Card,
@@ -20,7 +20,8 @@ import {
   Popover,
   Dropdown,
   Radio,
-  Avatar
+  Avatar,
+  Spin
 } from 'antd'
 import {
   PlusOutlined,
@@ -36,6 +37,9 @@ import {
 import dayjs from 'dayjs'
 import 'dayjs/locale/en'
 import isBetween from 'dayjs/plugin/isBetween'
+import axios from 'axios'
+import { useTranslation } from 'react-i18next'
+import { handleDemoRestriction, isDemoRestriction } from '../utils/demoError'
 
 dayjs.extend(isBetween)
 dayjs.locale('en')
@@ -43,97 +47,101 @@ dayjs.locale('en')
 const { Title, Text } = Typography
 const { Option } = Select
 
-// --- MOCK DATA & API CONFIG ---
-const mockClients = [
-  { id: 1, name: 'Innovate Corp', email: 'contact@innovate.com' },
-  { id: 2, name: 'Quantum Solutions', email: 'hello@quantum.dev' },
-  { id: 3, name: 'Synergy Labs', email: 'info@synergylabs.io' }
-]
+const API_URL = import.meta.env.VITE_API_URL
 
-const mockSpaces = [
-  { id: 1, name: 'Executive Suite', type: 'OFFICE', hourlyRate: 45 },
-  { id: 2, name: 'The Think Tank', type: 'MEETING_ROOM', hourlyRate: 60 },
-  { id: 3, name: 'Collaboration Hub', type: 'COWORKING', hourlyRate: 25 },
-  { id: 4, name: 'Focus Pod Alpha', type: 'OFFICE', hourlyRate: 30 },
-]
+const authHeaders = () => ({
+  Authorization: `Bearer ${localStorage.getItem('token')}`
+})
 
-const mockBookings = [
-  { id: 1, clientId: 1, spaceId: 1, startTime: dayjs().add(1, 'day').hour(9).minute(0).toISOString(), endTime: dayjs().add(1, 'day').hour(17).minute(0).toISOString(), status: 'CONFIRMED', notes: 'Full-day strategy session.' },
-  { id: 2, clientId: 2, spaceId: 2, startTime: dayjs().hour(14).minute(0).toISOString(), endTime: dayjs().hour(16).minute(0).toISOString(), status: 'PENDING', notes: 'Client presentation rehearsal.' },
-  { id: 3, clientId: 3, spaceId: 3, startTime: dayjs().subtract(1, 'day').hour(10).minute(0).toISOString(), endTime: dayjs().subtract(1, 'day').hour(13).minute(0).toISOString(), status: 'COMPLETED', notes: 'Team collaboration.' },
-  { id: 4, clientId: 1, spaceId: 4, startTime: dayjs().hour(10).minute(0).toISOString(), endTime: dayjs().hour(12).minute(0).toISOString(), status: 'CONFIRMED', notes: 'Interview.' }
-]
-
-// --- UTILITY FUNCTIONS ---
-const STATUS_CONFIG = {
-  PENDING: { label: 'Pending', color: 'gold', icon: <ClockCircleOutlined /> },
-  CONFIRMED: { label: 'Confirmed', color: 'blue', icon: <CheckCircleOutlined /> },
-  COMPLETED: { label: 'Completed', color: 'green', icon: <CheckCircleOutlined /> },
-  CANCELLED: { label: 'Cancelled', color: 'red', icon: <CloseCircleOutlined /> }
+const isConflictError = (error) => {
+  if (error?.response?.status !== 400) return false
+  const payload = error.response.data || {}
+  if (payload.conflictingBooking) return true
+  const text = String(payload.error || payload.message || '')
+  return /non disponibile|already booked|not available/i.test(text)
 }
 
-const getStatusDetails = (status) => STATUS_CONFIG[status] || { label: status, color: 'default' }
+const STATUS_CONFIG = {
+  CONFIRMED: { color: 'blue', icon: <CheckCircleOutlined /> },
+  CHECKED_IN: { color: 'gold', icon: <ClockCircleOutlined /> },
+  CHECKED_OUT: { color: 'green', icon: <CheckCircleOutlined /> },
+  CANCELLED: { color: 'red', icon: <CloseCircleOutlined /> }
+}
 
-// --- DATA HOOK ---
+const getStatusDetails = (status, t) => {
+  const config = STATUS_CONFIG[status] || { color: 'default' }
+  return { ...config, label: t(`enums.bookingStatus.${status}`, { defaultValue: status }) }
+}
+
+const normalizeBooking = (booking, t) => ({
+  ...booking,
+  startTime: booking.startDateTime || booking.startTime,
+  endTime: booking.endDateTime || booking.endTime,
+  clientName: booking.client?.name || booking.clientName || t('bookings.unknownClient'),
+  spaceName: booking.space?.name || booking.spaceName || t('bookings.unknownSpace'),
+  totalAmount: booking.totalAmount || 0
+})
+
 const useBookingData = () => {
+  const { t } = useTranslation()
   const [bookings, setBookings] = useState([])
   const [clients, setClients] = useState([])
   const [spaces, setSpaces] = useState([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
-  const enrichBookings = (bookingsData, clientsData, spacesData) => {
-    return bookingsData.map(booking => {
-      const client = clientsData.find(c => c.id === booking.clientId)
-      const space = spacesData.find(s => s.id === booking.spaceId)
-      const duration = dayjs(booking.endTime).diff(dayjs(booking.startTime), 'hour', true)
-      const totalAmount = space ? duration * space.hourlyRate : 0
-      return { ...booking, clientName: client?.name || 'Unknown Client', spaceName: space?.name || 'Unknown Space', totalAmount }
-    })
-  }
+  const reload = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const [bookingsRes, spacesRes, clientsRes] = await Promise.all([
+        axios.get(`${API_URL}/bookings`, { params: { limit: 1000 }, headers: authHeaders() }),
+        axios.get(`${API_URL}/spaces`, { headers: authHeaders() }),
+        axios.get(`${API_URL}/clients`, { params: { limit: 1000 }, headers: authHeaders() })
+      ])
+
+      const bookingRows = Array.isArray(bookingsRes.data?.data)
+        ? bookingsRes.data.data
+        : Array.isArray(bookingsRes.data) ? bookingsRes.data : []
+      const spaceRows = Array.isArray(spacesRes.data) ? spacesRes.data : []
+      const clientRows = Array.isArray(clientsRes.data?.clients)
+        ? clientsRes.data.clients
+        : Array.isArray(clientsRes.data) ? clientsRes.data : []
+
+      setBookings(bookingRows.map((booking) => normalizeBooking(booking, t)))
+      setSpaces(spaceRows)
+      setClients(clientRows)
+    } catch (err) {
+      if (isDemoRestriction(err) || handleDemoRestriction(err)) {
+        setError(err.response?.data?.message || t('common.errorLoading'))
+        return
+      }
+      const errorMessage = err.response?.data?.message || err.response?.data?.error || t('common.errorLoading')
+      setError(errorMessage)
+      message.error(errorMessage)
+    } finally {
+      setLoading(false)
+    }
+  }, [t])
 
   useEffect(() => {
-    const loadData = async () => {
-      setLoading(true)
-      try {
-        const enriched = enrichBookings(mockBookings, mockClients, mockSpaces)
-        setBookings(enriched)
-        setClients(mockClients)
-        setSpaces(mockSpaces)
-      } catch (error) {
-        message.error('Error loading data. Using fallback mock data.')
-        const enriched = enrichBookings(mockBookings, mockClients, mockSpaces)
-        setBookings(enriched)
-        setClients(mockClients)
-        setSpaces(mockSpaces)
-      } finally {
-        setLoading(false)
-      }
-    }
-    loadData()
-  }, [])
+    reload()
+  }, [reload])
 
-  const updateBooking = (updatedBooking) => {
-    setBookings(prev => prev.map(b => b.id === updatedBooking.id ? updatedBooking : b))
-  }
-
-  const addBooking = (newBooking) => {
-    const enrichedNewBooking = enrichBookings([newBooking], clients, spaces)[0]
-    setBookings(prev => [...prev, { ...enrichedNewBooking, id: Date.now() }])
-  }
-
-  return { bookings, clients, spaces, loading, updateBooking, addBooking }
+  return { bookings, clients, spaces, loading, error, reload }
 }
 
-// --- UI COMPONENTS ---
 const BookingStats = ({ bookings }) => {
-  const todayBookings = useMemo(() => bookings.filter(b => dayjs(b.startTime).isSame(dayjs(), 'day')), [bookings])
-  const pendingBookings = useMemo(() => bookings.filter(b => b.status === 'PENDING'), [bookings])
+  const { t, i18n } = useTranslation()
+  const formatCurrency = (amount) => new Intl.NumberFormat(i18n.language, { style: 'currency', currency: 'EUR' }).format(amount || 0)
+  const todayBookings = useMemo(() => bookings.filter(b => b.status !== 'CANCELLED' && dayjs(b.startTime).isSame(dayjs(), 'day')), [bookings])
+  const confirmedBookings = useMemo(() => bookings.filter(b => b.status === 'CONFIRMED'), [bookings])
   const todayRevenue = useMemo(() => todayBookings.reduce((sum, b) => sum + (b.totalAmount || 0), 0), [todayBookings])
 
   const statsCardsConfig = [
-    { key: 'today', title: "Today's Bookings", value: todayBookings.length, icon: <CalendarOutlined />, gradient: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)', subtitle: 'Scheduled for today' },
-    { key: 'pending', title: "Pending Confirmation", value: pendingBookings.length, icon: <ClockCircleOutlined />, gradient: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)', subtitle: 'Awaiting your approval' },
-    { key: 'revenue', title: "Today's Estimated Revenue", value: `$${todayRevenue.toFixed(2)}`, icon: <DollarCircleOutlined />, gradient: 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)', subtitle: 'Based on confirmed bookings' }
+    { key: 'today', title: t('bookings.todayBookings'), value: todayBookings.length, icon: <CalendarOutlined />, gradient: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)', subtitle: t('bookings.scheduledToday') },
+    { key: 'pending', title: t('bookings.pendingConfirmation'), value: confirmedBookings.length, icon: <ClockCircleOutlined />, gradient: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)', subtitle: t('bookings.awaitingApproval') },
+    { key: 'revenue', title: t('bookings.todayRevenue'), value: formatCurrency(todayRevenue), icon: <DollarCircleOutlined />, gradient: 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)', subtitle: t('bookings.basedOnConfirmed') }
   ];
 
   return (
@@ -156,7 +164,9 @@ const BookingStats = ({ bookings }) => {
   );
 };
 
-const BookingModal = ({ open, onCancel, onFinish, booking, clients, spaces }) => {
+const BookingModal = ({ open, onCancel, onFinish, booking, clients, spaces, saving }) => {
+  const { t, i18n } = useTranslation()
+  const formatCurrency = (amount) => new Intl.NumberFormat(i18n.language, { style: 'currency', currency: 'EUR' }).format(amount || 0)
   const [form] = Form.useForm();
   const isEditing = !!booking;
   useEffect(() => {
@@ -167,67 +177,62 @@ const BookingModal = ({ open, onCancel, onFinish, booking, clients, spaces }) =>
           spaceId: booking.spaceId,
           date: dayjs(booking.startTime),
           timeRange: [dayjs(booking.startTime), dayjs(booking.endTime)],
-          status: booking.status,
           notes: booking.notes
         });
       } else {
         form.resetFields();
-        form.setFieldsValue({
-           status: 'PENDING'
-        });
       }
     }
   }, [open, booking, isEditing, form]);
 
   const handleFinish = (values) => {
-    console.log('Form values:', values);
     if (!values.date || !values.timeRange || !values.clientId || !values.spaceId) {
-      message.error('Please fill all required fields');
+      message.error(t('bookings.fillRequired'));
       return;
     }
-    const startTime = values.date
+    const startDateTime = values.date
       .hour(values.timeRange[0].hour())
       .minute(values.timeRange[0].minute())
-      .second(0);
-    const endTime = values.date
+      .second(0)
+      .millisecond(0);
+    const endDateTime = values.date
       .hour(values.timeRange[1].hour())
-        .minute(values.timeRange[1].minute())
-      .second(0);
-    const bookingData = {
+      .minute(values.timeRange[1].minute())
+      .second(0)
+      .millisecond(0);
+    onFinish({
       clientId: values.clientId,
       spaceId: values.spaceId,
-      startTime: startTime.toISOString(),
-      endTime: endTime.toISOString(),
-      status: values.status || 'PENDING',
+      startDateTime: startDateTime.toISOString(),
+      endDateTime: endDateTime.toISOString(),
       notes: values.notes || ''
-    };
-    onFinish(bookingData, booking?.id);
+    }, booking?.id);
   };
 
   return (
     <Modal
        open={open}
-      title={isEditing ? 'Edit Booking' : 'Create New Booking'}
+      title={isEditing ? t('bookings.editBooking') : t('bookings.createBooking')}
       onCancel={onCancel}
       footer={null}
       width={600}
-      destroyOnHidden // Corretto da destroyOnClose
+      destroyOnHidden
+      maskClosable={!saving}
     >
       <Form
          form={form}
          layout="vertical"
          onFinish={handleFinish}
-        preserve={false}
       >
         <Row gutter={16}>
           <Col span={12}>
             <Form.Item
                name="clientId"
-               label="Client"
-               rules={[{ required: true, message: 'Please select a client' }]}
+               label={t('common.client')}
+               rules={[{ required: true, message: t('bookings.selectClientRequired') }]}
             >
               <Select
-                 placeholder="Select a client"
+                 placeholder={t('bookings.selectClient')}
                 showSearch
                 allowClear
                 optionFilterProp="children"
@@ -243,17 +248,17 @@ const BookingModal = ({ open, onCancel, onFinish, booking, clients, spaces }) =>
           <Col span={12}>
             <Form.Item
                name="spaceId"
-               label="Workspace"
-               rules={[{ required: true, message: 'Please select a workspace' }]}
+               label={t('bookings.workspace')}
+               rules={[{ required: true, message: t('bookings.selectWorkspaceRequired') }]}
             >
               <Select
-                 placeholder="Select a workspace"
+                 placeholder={t('bookings.selectWorkspace')}
                 allowClear
               >
                 {spaces && spaces.map(space => (
                   <Option key={space.id} value={space.id}>
-                    {space.name} (${space.hourlyRate}/hr)
-                  </Option> // <-- ERRORE DI BATTITURA CORRETTO
+                    {t('bookings.hourlyRate', { name: space.name, rate: formatCurrency(space.hourlyRate) })}
+                  </Option>
                 ))}
               </Select>
             </Form.Item>
@@ -263,8 +268,8 @@ const BookingModal = ({ open, onCancel, onFinish, booking, clients, spaces }) =>
           <Col span={12}>
             <Form.Item
                name="date"
-               label="Date"
-               rules={[{ required: true, message: 'Please select a date' }]}
+               label={t('common.date')}
+               rules={[{ required: true, message: t('bookings.selectDateRequired') }]}
             >
               <DatePicker style={{ width: '100%' }} />
             </Form.Item>
@@ -272,8 +277,8 @@ const BookingModal = ({ open, onCancel, onFinish, booking, clients, spaces }) =>
           <Col span={12}>
             <Form.Item
                name="timeRange"
-               label="Time"
-               rules={[{ required: true, message: 'Please select time range' }]}
+               label={t('bookings.time')}
+               rules={[{ required: true, message: t('bookings.selectTimeRequired') }]}
             >
               <TimePicker.RangePicker
                  format="HH:mm"
@@ -283,31 +288,20 @@ const BookingModal = ({ open, onCancel, onFinish, booking, clients, spaces }) =>
             </Form.Item>
           </Col>
         </Row>
-        <Form.Item
-           name="status"
-           label="Status"
-          rules={[{ required: true, message: 'Please select a status' }]}
-        >
-          <Select>
-            {Object.entries(STATUS_CONFIG).map(([key, { label }]) => (
-              <Option key={key} value={key}>{label}</Option>
-            ))}
-          </Select>
-        </Form.Item>
-        <Form.Item name="notes" label="Notes">
+        <Form.Item name="notes" label={t('common.notes')}>
           <Input.TextArea
              rows={3}
-             placeholder="Add any relevant notes..."
+             placeholder={t('bookings.notesPlaceholder')}
              maxLength={500}
           />
         </Form.Item>
         <Form.Item style={{ marginBottom: 0, textAlign: 'right' }}>
           <Space>
-            <Button onClick={onCancel}>
-              Cancel
+            <Button onClick={onCancel} disabled={saving}>
+              {t('common.cancel')}
             </Button>
-            <Button type="primary" htmlType="submit">
-              {isEditing ? 'Update Booking' : 'Create Booking'}
+            <Button type="primary" htmlType="submit" loading={saving}>
+              {isEditing ? t('bookings.updateBooking') : t('bookings.createBookingBtn')}
             </Button>
           </Space>
         </Form.Item>
@@ -317,6 +311,7 @@ const BookingModal = ({ open, onCancel, onFinish, booking, clients, spaces }) =>
 };
 
 const BookingCalendarView = ({ bookings }) => {
+    const { t } = useTranslation()
     const cellRender = (current) => {
         const dayBookings = bookings.filter(b => dayjs(b.startTime).isSame(current, 'day'));
         const popoverContent = (
@@ -324,7 +319,7 @@ const BookingCalendarView = ({ bookings }) => {
                 <Space direction="vertical">
                     {dayBookings.map(item => (
                         <div key={item.id}>
-                           <Tag color={getStatusDetails(item.status).color}>{dayjs(item.startTime).format('HH:mm')} - {dayjs(item.endTime).format('HH:mm')}</Tag>
+                           <Tag color={getStatusDetails(item.status, t).color}>{dayjs(item.startTime).format('HH:mm')} - {dayjs(item.endTime).format('HH:mm')}</Tag>
                            <br/>
                            <Text strong>{item.spaceName}</Text> - <Text>{item.clientName}</Text>
                         </div>
@@ -334,9 +329,9 @@ const BookingCalendarView = ({ bookings }) => {
         );
         if (dayBookings.length > 0) {
             return (
-                <Popover content={popoverContent} title={`Bookings for ${current.format('MMMM D')}`} trigger="hover">
+                <Popover content={popoverContent} title={t('bookings.bookingsFor', { date: current.format('MMMM D') })} trigger="hover">
                     <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
-                        {dayBookings.map(item => (<li key={item.id}><Badge status={getStatusDetails(item.status).color} text={`${item.spaceName.substring(0, 15)}...`} /></li>))}
+                        {dayBookings.map(item => (<li key={item.id}><Badge status={getStatusDetails(item.status, t).color} text={`${(item.spaceName || '').substring(0, 15)}...`} /></li>))}
                     </ul>
                 </Popover>
             );
@@ -347,25 +342,27 @@ const BookingCalendarView = ({ bookings }) => {
 };
 
 const BookingsListView = ({ bookings, loading, onEdit, onStatusChange }) => {
+  const { t, i18n } = useTranslation()
+  const formatCurrency = (amount) => new Intl.NumberFormat(i18n.language, { style: 'currency', currency: 'EUR' }).format(amount || 0)
   const columns = [
-    { title: 'Client & Space', dataIndex: 'clientName', key: 'client', sorter: (a, b) => a.clientName.localeCompare(b.clientName), render: (text, record) => (<div><Text strong><UserOutlined style={{ marginRight: 8 }}/>{record.clientName}</Text><br/><Text type="secondary">{record.spaceName}</Text></div>) },
-    { title: 'Date & Time', key: 'datetime', sorter: (a, b) => dayjs(a.startTime).unix() - dayjs(b.startTime).unix(), render: (_, record) => (<div><Text>{dayjs(record.startTime).format('ddd, MMM D, YYYY')}</Text><br/><Text type="secondary">{dayjs(record.startTime).format('HH:mm')} - {dayjs(record.endTime).format('HH:mm')}</Text></div>) },
-    { title: 'Status', dataIndex: 'status', key: 'status', filters: Object.entries(STATUS_CONFIG).map(([key, { label }]) => ({ text: label, value: key })), onFilter: (value, record) => record.status === value, render: (status) => { const { label, color, icon } = getStatusDetails(status); return <Tag icon={icon} color={color}>{label}</Tag> } },
-    { title: 'Amount', dataIndex: 'totalAmount', key: 'amount', sorter: (a, b) => a.totalAmount - b.totalAmount, render: (amount) => `$${(amount || 0).toFixed(2)}` },
+    { title: t('bookings.colClientSpace'), dataIndex: 'clientName', key: 'client', sorter: (a, b) => a.clientName.localeCompare(b.clientName), render: (text, record) => (<div><Text strong><UserOutlined style={{ marginRight: 8 }}/>{record.clientName}</Text><br/><Text type="secondary">{record.spaceName}</Text></div>) },
+    { title: t('bookings.colDateTime'), key: 'datetime', sorter: (a, b) => dayjs(a.startTime).unix() - dayjs(b.startTime).unix(), render: (_, record) => (<div><Text>{dayjs(record.startTime).format('ddd, MMM D, YYYY')}</Text><br/><Text type="secondary">{dayjs(record.startTime).format('HH:mm')} - {dayjs(record.endTime).format('HH:mm')}</Text></div>) },
+    { title: t('common.status'), dataIndex: 'status', key: 'status', filters: Object.keys(STATUS_CONFIG).map((key) => ({ text: t(`enums.bookingStatus.${key}`), value: key })), onFilter: (value, record) => record.status === value, render: (status) => { const { label, color, icon } = getStatusDetails(status, t); return <Tag icon={icon} color={color}>{label}</Tag> } },
+    { title: t('bookings.colAmount'), dataIndex: 'totalAmount', key: 'amount', sorter: (a, b) => a.totalAmount - b.totalAmount, render: (amount) => formatCurrency(amount) },
     {
-      title: 'Action',
+      title: t('common.actions'),
       key: 'action',
       align: 'right',
       render: (_, record) => {
         const menuItems = {
           items: [
-            { key: 'edit', label: 'Edit', onClick: () => onEdit(record) },
+            { key: 'edit', label: t('common.edit'), onClick: () => onEdit(record) },
             {
               key: 'status',
-              label: 'Change Status',
-              children: Object.entries(STATUS_CONFIG).map(([key, { label }]) => ({
+              label: t('bookings.changeStatus'),
+              children: Object.keys(STATUS_CONFIG).map((key) => ({
                 key: key,
-                label: label,
+                label: t(`enums.bookingStatus.${key}`),
                 onClick: () => onStatusChange(record, key),
                 disabled: record.status === key
               }))
@@ -380,36 +377,67 @@ const BookingsListView = ({ bookings, loading, onEdit, onStatusChange }) => {
       }
     }
   ];
-  return <Table columns={columns} dataSource={bookings} loading={loading} rowKey="id" pagination={{ pageSize: 8, showSizeChanger: false }} scroll={{ x: 800 }} />;
+  return <Table columns={columns} dataSource={bookings} loading={loading} rowKey="id" pagination={{ pageSize: 8, showSizeChanger: false }} scroll={{ x: 800 }} locale={{ emptyText: t('bookings.emptyTitle') }} />;
 };
 
-// --- MAIN COMPONENT ---
 function Bookings() {
-  const { bookings, clients, spaces, loading, updateBooking, addBooking } = useBookingData()
+  const { t } = useTranslation()
+  const { bookings, clients, spaces, loading, error, reload } = useBookingData()
   const [isModalVisible, setIsModalVisible] = useState(false)
   const [editingBooking, setEditingBooking] = useState(null)
   const [viewMode, setViewMode] = useState('list')
+  const [saving, setSaving] = useState(false)
 
   const handleEdit = (booking) => { setEditingBooking(booking); setIsModalVisible(true); }
   const handleAdd = () => { setEditingBooking(null); setIsModalVisible(true); }
 
-  const handleModalFinish = (bookingData, bookingId) => {
+  const handleModalFinish = async (bookingData, bookingId) => {
+    setSaving(true)
     try {
       if (bookingId) {
-        const existingBooking = bookings.find(b => b.id === bookingId);
-        updateBooking({ ...existingBooking, ...bookingData });
-        message.success('Booking updated successfully!');
+        await axios.put(`${API_URL}/bookings/${bookingId}`, bookingData, {
+          headers: authHeaders()
+        })
+        message.success(t('bookings.updated'))
       } else {
-        addBooking(bookingData);
-        message.success('Booking created successfully!');
+        await axios.post(`${API_URL}/bookings`, bookingData, {
+          headers: authHeaders()
+        })
+        message.success(t('bookings.created'))
       }
-      setIsModalVisible(false);
-    } catch (error) { message.error('Failed to save booking.'); }
+      setIsModalVisible(false)
+      setEditingBooking(null)
+      await reload()
+    } catch (err) {
+      if (isDemoRestriction(err) || handleDemoRestriction(err)) return
+      if (isConflictError(err)) {
+        message.error(t('bookings.conflict'))
+        return
+      }
+      message.error(err.response?.data?.error || err.response?.data?.message || t('bookings.saveFailed'))
+    } finally {
+      setSaving(false)
+    }
   }
-  
-  const handleStatusChange = (booking, newStatus) => {
-     updateBooking({ ...booking, status: newStatus });
-     message.success(`Booking status changed to ${STATUS_CONFIG[newStatus].label}`);
+
+  const handleStatusChange = async (booking, newStatus) => {
+    try {
+      if (newStatus === 'CHECKED_IN') {
+        await axios.patch(`${API_URL}/bookings/${booking.id}/checkin`, {}, { headers: authHeaders() })
+      } else if (newStatus === 'CHECKED_OUT') {
+        await axios.patch(`${API_URL}/bookings/${booking.id}/checkout`, {}, { headers: authHeaders() })
+      } else if (newStatus === 'CANCELLED') {
+        await axios.delete(`${API_URL}/bookings/${booking.id}`, { headers: authHeaders() })
+      } else {
+        message.error(t('bookings.saveFailed'))
+        return
+      }
+      message.success(t('bookings.statusChanged', { status: t(`enums.bookingStatus.${newStatus}`) }))
+      await reload()
+    } catch (err) {
+      if (isDemoRestriction(err) || handleDemoRestriction(err)) return
+      message.error(err.response?.data?.error || err.response?.data?.message || t('bookings.saveFailed'))
+    }
   }
 
   return (
@@ -418,20 +446,20 @@ function Bookings() {
         <Col>
           <Title level={2} style={{ margin: 0 }}>
             <CalendarOutlined style={{ marginRight: 12, color: '#4F46E5' }} />
-            Workspace Bookings
+            {t('bookings.title')}
           </Title>
           <Text type="secondary" style={{ fontSize: 16 }}>
-            Manage, view, and schedule all your bookings.
+            {t('bookings.subtitle')}
           </Text>
         </Col>
         <Col>
           <Space size="middle">
              <Radio.Group value={viewMode} onChange={(e) => setViewMode(e.target.value)} optionType="button" buttonStyle="solid">
-                <Radio.Button value="list"><BarsOutlined /> List</Radio.Button>
-                <Radio.Button value="calendar"><CalendarOutlined /> Calendar</Radio.Button>
+                <Radio.Button value="list"><BarsOutlined /> {t('bookings.list')}</Radio.Button>
+                <Radio.Button value="calendar"><CalendarOutlined /> {t('bookings.calendar')}</Radio.Button>
             </Radio.Group>
             <Button type="primary" size="large" icon={<PlusOutlined />} onClick={handleAdd}>
-              New Booking
+              {t('bookings.newBooking')}
             </Button>
           </Space>
         </Col>
@@ -440,10 +468,28 @@ function Bookings() {
       <BookingStats bookings={bookings} />
 
       <Card style={{ borderRadius: 16, border: 'none', boxShadow: '0 2px 10px rgba(0,0,0,0.05)' }}>
-        {viewMode === 'list' ? (
-          <BookingsListView 
-              bookings={bookings} 
-              loading={loading} 
+        {loading && bookings.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '80px' }}>
+            <Spin size="large" />
+            <Text style={{ marginTop: 16, display: 'block' }}>{t('bookings.loading')}</Text>
+          </div>
+        ) : error ? (
+          <div style={{ textAlign: 'center', padding: '60px' }}>
+            <CalendarOutlined style={{ fontSize: 48, marginBottom: 16, color: '#ff4d4f' }} />
+            <Title level={3}>{t('common.errorLoading')}</Title>
+            <Text style={{ fontSize: 16, display: 'block', marginBottom: 24 }}>{error}</Text>
+            <Button type="primary" onClick={reload}>{t('bookings.retry')}</Button>
+          </div>
+        ) : !loading && bookings.length === 0 && viewMode === 'list' ? (
+          <div style={{ textAlign: 'center', padding: '60px' }}>
+            <CalendarOutlined style={{ fontSize: 48, marginBottom: 16, color: '#4F46E5' }} />
+            <Title level={3}>{t('bookings.emptyTitle')}</Title>
+            <Text style={{ fontSize: 16 }}>{t('bookings.emptyText')}</Text>
+          </div>
+        ) : viewMode === 'list' ? (
+          <BookingsListView
+              bookings={bookings}
+              loading={loading}
               onEdit={handleEdit}
               onStatusChange={handleStatusChange}
           />
@@ -454,15 +500,15 @@ function Bookings() {
 
       <BookingModal
         open={isModalVisible}
-        onCancel={() => setIsModalVisible(false)}
+        onCancel={() => !saving && setIsModalVisible(false)}
         onFinish={handleModalFinish}
         booking={editingBooking}
         clients={clients}
         spaces={spaces}
+        saving={saving}
       />
     </div>
   )
 }
 
 export default Bookings;
-

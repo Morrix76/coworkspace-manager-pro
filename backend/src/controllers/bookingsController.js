@@ -96,6 +96,10 @@ export const getBooking = async (req, res) => {
 export const createBooking = async (req, res) => {
   try {
     const { spaceId, clientId, startDateTime, endDateTime, notes } = req.body
+
+    if (!spaceId || !clientId || !startDateTime || !endDateTime) {
+      return res.status(400).json({ error: 'spaceId, clientId, startDateTime, and endDateTime are required' })
+    }
     
     // Validate dates
     const start = new Date(startDateTime)
@@ -209,9 +213,13 @@ export const updateBooking = async (req, res) => {
       }
     }
     
-    // Recalculate amount if times changed
-    let updateData = { ...req.body }
-    
+    const updateData = {}
+    if (spaceId !== undefined) updateData.spaceId = spaceId
+    if (clientId !== undefined) updateData.clientId = clientId
+    if (startDateTime !== undefined) updateData.startDateTime = new Date(startDateTime)
+    if (endDateTime !== undefined) updateData.endDateTime = new Date(endDateTime)
+    if (notes !== undefined) updateData.notes = notes
+
     if (startDateTime && endDateTime) {
       const space = await prisma.space.findUnique({ 
         where: { id: spaceId || currentBooking.spaceId } 

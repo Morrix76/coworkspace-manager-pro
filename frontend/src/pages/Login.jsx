@@ -17,8 +17,10 @@ import {
   LoginOutlined,
   RocketOutlined
 } from '@ant-design/icons'
+import { useTranslation } from 'react-i18next'
 import { login } from '../store/slices/authSlice'
 import axios from 'axios'
+import { handleDemoRestriction } from '../utils/demoError'
 
 const { Title, Text } = Typography
 const { Content } = Layout
@@ -26,6 +28,7 @@ const { Content } = Layout
 const API_URL = import.meta.env.VITE_API_URL
 
 function Login() {
+  const { t } = useTranslation()
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
   const dispatch = useDispatch()
@@ -42,10 +45,11 @@ function Login() {
       localStorage.setItem('token', token)
       
       dispatch(login({ user, token }))
-      message.success('Login successful')
+      message.success(t('login.success'))
       navigate('/dashboard')
     } catch (error) {
-      message.error(error.response?.data?.message || 'Login error')
+      if (handleDemoRestriction(error)) return
+      message.error(error.response?.data?.message || t('login.error'))
     } finally {
       setLoading(false)
     }
@@ -167,7 +171,7 @@ function Login() {
                 fontWeight: 700,
                 letterSpacing: '-0.5px'
               }}>
-                CoworkSpace Pro
+                {t('login.title')}
               </Title>
               
               <Text style={{ 
@@ -175,7 +179,7 @@ function Login() {
                 color: '#64748B',
                 fontWeight: 500 
               }}>
-                The future of coworking starts here
+                {t('login.subtitle')}
               </Text>
             </div>
 
@@ -190,14 +194,14 @@ function Login() {
               <Form.Item
                 name="email"
                 rules={[
-                  { required: true, message: 'Please enter your email' },
-                  { type: 'email', message: 'Invalid email format' }
+                  { required: true, message: t('login.emailRequired') },
+                  { type: 'email', message: t('login.emailInvalid') }
                 ]}
                 style={{ marginBottom: '24px' }}
               >
                 <Input 
                   prefix={<UserOutlined style={{ color: '#4F46E5' }} />} 
-                  placeholder="Email"
+                  placeholder={t('login.emailPlaceholder')}
                   autoComplete="email"
                   style={{
                     height: '52px',
@@ -212,12 +216,12 @@ function Login() {
 
               <Form.Item
                 name="password"
-                rules={[{ required: true, message: 'Please enter your password' }]}
+                rules={[{ required: true, message: t('login.passwordRequired') }]}
                 style={{ marginBottom: '32px' }}
               >
                 <Input.Password 
                   prefix={<LockOutlined style={{ color: '#4F46E5' }} />} 
-                  placeholder="Password"
+                  placeholder={t('login.passwordPlaceholder')}
                   autoComplete="current-password"
                   style={{
                     height: '52px',
@@ -249,7 +253,7 @@ function Login() {
                   }}
                 >
                   <span style={{ position: 'relative', zIndex: 2 }}>
-                    Access the Future
+                    {t('login.submit')}
                   </span>
                 </Button>
               </Form.Item>
@@ -273,7 +277,7 @@ function Login() {
                 textTransform: 'uppercase',
                 letterSpacing: '0.5px'
               }}>
-                Demo Credentials
+                {t('login.demoCredentials')}
               </Text>
               <Text style={{ 
                 fontSize: '14px',
@@ -282,8 +286,8 @@ function Login() {
                 fontFamily: 'monospace',
                 lineHeight: '1.6'
               }}>
-                <strong>Email:</strong> admin@opuscentersrl.it<br />
-                <strong>Password:</strong> admin123
+                <strong>{t('login.demoEmail')}:</strong> admin@opuscentersrl.it<br />
+                <strong>{t('login.demoPassword')}:</strong> admin123
               </Text>
             </div>
           </Space>

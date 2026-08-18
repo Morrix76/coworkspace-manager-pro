@@ -1,5 +1,16 @@
 import prisma from '../config/database.js'
 
+const SPACE_TYPES = ['OFFICE', 'MEETING_ROOM', 'COWORKING', 'EVENT_SPACE']
+
+const normalizeAmenities = (amenities) => {
+  if (amenities == null) return undefined
+  if (Array.isArray(amenities)) return amenities
+  if (typeof amenities === 'string') {
+    return amenities.split(',').map((item) => item.trim()).filter(Boolean)
+  }
+  return []
+}
+
 // GET /spaces - Lista spazi con filtri
 export const getSpaces = async (req, res) => {
   try {
@@ -12,16 +23,14 @@ export const getSpaces = async (req, res) => {
       sortOrder = 'asc' 
     } = req.query
 
-    const where = {
-      organizationId: req.user.organizationId
-    }
+    const where = {}
 
     if (type) {
       where.type = type
     }
 
     if (available === 'true') {
-      where.isActive = true
+      where.active = true
     }
 
     if (minCapacity) {
@@ -56,11 +65,8 @@ export const getSpace = async (req, res) => {
   try {
     const { id } = req.params
 
-    const space = await prisma.space.findFirst({
-      where: {
-        id,
-        organizationId: req.user.organizationId
-      },
+    const space = await prisma.space.findUnique({
+      where: { id },
       include: {
         bookings: {
           take: 10,
@@ -69,8 +75,7 @@ export const getSpace = async (req, res) => {
             client: {
               select: {
                 id: true,
-                firstName: true,
-                lastName: true,
+                name: true,
                 email: true
               }
             }
@@ -107,19 +112,19 @@ export const createSpace = async (req, res) => {
       monthlyRate,
       description,
       amenities = [],
-      images = [],
-      building,
-      floor,
-      room,
-      minBookingHours = 1,
-      maxBookingHours = 24,
-      advanceBookingDays = 30,
-      requiresApproval = false
+      active,
+      isActive
     } = req.body
 
-    if (!name || !type || !capacity || !hourlyRate) {
+    if (!name || !type || capacity === undefined || hourlyRate === undefined) {
       return res.status(400).json({
         error: 'Name, type, capacity, and hourly rate are required'
+      })
+    }
+
+    if (!SPACE_TYPES.includes(type)) {
+      return res.status(400).json({
+        error: `Invalid space type. Allowed: ${SPACE_TYPES.join(', ')}`
       })
     }
 
@@ -131,17 +136,11 @@ export const createSpace = async (req, res) => {
         hourlyRate: parseFloat(hourlyRate),
         dailyRate: parseFloat(dailyRate || 0),
         monthlyRate: parseFloat(monthlyRate || 0),
-        description,
-        amenities: Array.isArray(amenities) ? amenities.join(',') : amenities,
-        images: Array.isArray(images) ? images.join(',') : images,
-        building,
-        floor,
-        room,
-        minBookingHours: parseInt(minBookingHours),
-        maxBookingHours: parseInt(maxBookingHours),
-        advanceBookingDays: parseInt(advanceBookingDays),
-        requiresApproval,
-        organizationId: req.user.organizationId
+        description: description || null,
+        amenities: normalizeAmenities(amenities) ?? [],
+        ...((active !== undefined || isActive !== undefined) && {
+          active: Boolean(active !== undefined ? active : isActive)
+        })
       }
     })
 
@@ -165,27 +164,22 @@ export const updateSpace = async (req, res) => {
       monthlyRate,
       description,
       amenities,
-      images,
-      building,
-      floor,
-      room,
-      minBookingHours,
-      maxBookingHours,
-      advanceBookingDays,
-      requiresApproval,
+      active,
       isActive
     } = req.body
 
-    // Check if space exists and belongs to organization
-    const existingSpace = await prisma.space.findFirst({
-      where: {
-        id,
-        organizationId: req.user.organizationId
-      }
+    const existingSpace = await prisma.space.findUnique({
+      where: { id }
     })
 
     if (!existingSpace) {
       return res.status(404).json({ error: 'Space not found' })
+    }
+
+    if (type !== undefined && !SPACE_TYPES.includes(type)) {
+      return res.status(400).json({
+        error: `Invalid space type. Allowed: ${SPACE_TYPES.join(', ')}`
+      })
     }
 
     const updateData = {}
@@ -196,16 +190,9 @@ export const updateSpace = async (req, res) => {
     if (dailyRate !== undefined) updateData.dailyRate = parseFloat(dailyRate)
     if (monthlyRate !== undefined) updateData.monthlyRate = parseFloat(monthlyRate)
     if (description !== undefined) updateData.description = description
-    if (amenities !== undefined) updateData.amenities = Array.isArray(amenities) ? amenities.join(',') : amenities
-    if (images !== undefined) updateData.images = Array.isArray(images) ? images.join(',') : images
-    if (building !== undefined) updateData.building = building
-    if (floor !== undefined) updateData.floor = floor
-    if (room !== undefined) updateData.room = room
-    if (minBookingHours !== undefined) updateData.minBookingHours = parseInt(minBookingHours)
-    if (maxBookingHours !== undefined) updateData.maxBookingHours = parseInt(maxBookingHours)
-    if (advanceBookingDays !== undefined) updateData.advanceBookingDays = parseInt(advanceBookingDays)
-    if (requiresApproval !== undefined) updateData.requiresApproval = requiresApproval
-    if (isActive !== undefined) updateData.isActive = isActive
+    if (amenities !== undefined) updateData.amenities = normalizeAmenities(amenities)
+    if (active !== undefined) updateData.active = Boolean(active)
+    else if (isActive !== undefined) updateData.active = Boolean(isActive)
 
     const space = await prisma.space.update({
       where: { id },
@@ -224,24 +211,19 @@ export const deleteSpace = async (req, res) => {
   try {
     const { id } = req.params
 
-    // Check if space exists and belongs to organization
-    const space = await prisma.space.findFirst({
-      where: {
-        id,
-        organizationId: req.user.organizationId
-      }
+    const space = await prisma.space.findUnique({
+      where: { id }
     })
 
     if (!space) {
       return res.status(404).json({ error: 'Space not found' })
     }
 
-    // Check if space has active bookings
     const activeBookings = await prisma.booking.count({
       where: {
         spaceId: id,
-        status: { in: ['CONFIRMED', 'PENDING'] },
-        endDate: { gte: new Date() }
+        status: { in: ['CONFIRMED', 'CHECKED_IN'] },
+        endDateTime: { gte: new Date() }
       }
     })
 
@@ -274,36 +256,30 @@ export const getSpaceAvailability = async (req, res) => {
       })
     }
 
-    // Check if space exists and belongs to organization
-    const space = await prisma.space.findFirst({
-      where: {
-        id,
-        organizationId: req.user.organizationId
-      }
+    const space = await prisma.space.findUnique({
+      where: { id }
     })
 
     if (!space) {
       return res.status(404).json({ error: 'Space not found' })
     }
 
-    // Get existing bookings in the date range
+    const rangeStart = new Date(startDate)
+    const rangeEnd = new Date(endDate)
+
     const bookings = await prisma.booking.findMany({
       where: {
         spaceId: id,
-        status: { in: ['CONFIRMED', 'PENDING'] },
-        OR: [
-          {
-            startDate: { lte: new Date(endDate) },
-            endDate: { gte: new Date(startDate) }
-          }
-        ]
+        status: { in: ['CONFIRMED', 'CHECKED_IN'] },
+        startDateTime: { lt: rangeEnd },
+        endDateTime: { gt: rangeStart }
       },
       select: {
-        startDate: true,
-        endDate: true,
+        startDateTime: true,
+        endDateTime: true,
         status: true
       },
-      orderBy: { startDate: 'asc' }
+      orderBy: { startDateTime: 'asc' }
     })
 
     res.json({
@@ -326,12 +302,8 @@ export const getSpaceStats = async (req, res) => {
   try {
     const { id } = req.params
 
-    // Check if space exists and belongs to organization
-    const space = await prisma.space.findFirst({
-      where: {
-        id,
-        organizationId: req.user.organizationId
-      }
+    const space = await prisma.space.findUnique({
+      where: { id }
     })
 
     if (!space) {
@@ -383,7 +355,7 @@ export const getSpaceStats = async (req, res) => {
       thisMonthBookings,
       thisMonthRevenue: thisMonthRevenue._sum.totalAmount || 0,
       averageBookingValue: averageBookingDuration._avg.totalAmount || 0,
-      utilizationRate: 0 // Would need more complex calculation
+      utilizationRate: 0
     })
   } catch (error) {
     console.error('Get space stats error:', error)
@@ -394,16 +366,7 @@ export const getSpaceStats = async (req, res) => {
 // GET /spaces/types - Tipi di spazio disponibili
 export const getSpaceTypes = async (req, res) => {
   try {
-    const types = [
-      'OFFICE',
-      'MEETING_ROOM', 
-      'DESK',
-      'PHONE_BOOTH',
-      'EVENT_SPACE',
-      'COMMON_AREA'
-    ]
-
-    res.json(types)
+    res.json(SPACE_TYPES)
   } catch (error) {
     console.error('Get space types error:', error)
     res.status(500).json({ error: 'Failed to get space types' })

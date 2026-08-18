@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Typography,
   Card,
@@ -15,115 +15,103 @@ import {
   DatePicker,
   InputNumber,
   message,
-  Statistic,
-  Upload,
   Tooltip,
-  Divider,
-  Avatar // Aggiunto Avatar
+  Avatar,
+  Spin
 } from 'antd'
 import {
   PlusOutlined,
-  EyeOutlined,
-  DownloadOutlined,
   FileTextOutlined,
   EditOutlined,
-  DeleteOutlined,
-  UploadOutlined,
-  ContainerOutlined,
   CheckCircleOutlined,
-  ClockCircleOutlined,
+  StopOutlined,
+  FileDoneOutlined,
+  DollarCircleOutlined,
   ExclamationCircleOutlined,
-  StopOutlined, // Aggiunta icona
-  FileDoneOutlined, // Aggiunta icona
-  FileSyncOutlined, // Aggiunta icona
-  DollarCircleOutlined // Aggiunta icona
+  FormOutlined
 } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import axios from 'axios'
+import { useTranslation } from 'react-i18next'
+import { handleDemoRestriction, isDemoRestriction } from '../utils/demoError'
 
-const { Title, Text } = Typography // Aggiunto Text
+const { Title, Text } = Typography
 const { Option } = Select
 const { TextArea } = Input
 
 const API_URL = import.meta.env.VITE_API_URL
 
-// --- CONFIGURAZIONE CENTRALE DEGLI STATI ---
+const authHeaders = () => ({
+  Authorization: `Bearer ${localStorage.getItem('token')}`
+})
+
 const STATUS_CONFIG = {
-  DRAFT: { label: 'Draft', color: 'default', icon: <EditOutlined /> },
-  PENDING: { label: 'Pending', color: 'gold', icon: <ClockCircleOutlined /> },
-  ACTIVE: { label: 'Active', color: 'green', icon: <CheckCircleOutlined /> },
-  EXPIRED: { label: 'Expired', color: 'red', icon: <StopOutlined /> },
-  TERMINATED: { label: 'Terminated', color: 'red', icon: <ExclamationCircleOutlined /> }
-};
-
-const getStatusDetails = (status) => STATUS_CONFIG[status] || { label: status, color: 'default' };
-
-const getTypeLabel = (type) => {
-  const labels = {
-    HOURLY: 'Hourly',
-    SHORT_TERM: 'Short Term',
-    LONG_TERM: 'Long Term',
-    PERMANENT: 'Permanent'
-  }
-  return labels[type] || type
+  ACTIVE: { color: 'green', icon: <CheckCircleOutlined /> },
+  EXPIRED: { color: 'red', icon: <StopOutlined /> },
+  CANCELLED: { color: 'default', icon: <ExclamationCircleOutlined /> }
 }
 
+const CONTRACT_TYPES = ['DOMICILIATION', 'VIRTUAL_OFFICE', 'LONG_TERM_RENTAL']
+
+const getStatusDetails = (status, t) => {
+  const config = STATUS_CONFIG[status] || { color: 'default' }
+  return { ...config, label: t(`enums.contractStatus.${status}`, { defaultValue: status }) }
+}
 
 function Contracts() {
+  const { t, i18n } = useTranslation()
+  const formatCurrency = (amount) => new Intl.NumberFormat(i18n.language, { style: 'currency', currency: 'EUR' }).format(amount || 0)
+
   const [contracts, setContracts] = useState([])
   const [clients, setClients] = useState([])
-  const [spaces, setSpaces] = useState([])
   const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState(null)
   const [isModalVisible, setIsModalVisible] = useState(false)
   const [editingContract, setEditingContract] = useState(null)
-  const [filterStatus, setFilterStatus] = useState(null) // Modificato per allowClear
+  const [filterStatus, setFilterStatus] = useState(null)
   const [form] = Form.useForm()
 
-  // --- MOCK DATA (per fallback) ---
-  const mockContracts = [
-    { id: 1, number: 'CONT-2025-001', clientId: 1, clientName: 'Innovate Corp', spaceId: 1, spaceName: 'Executive Office 1', type: 'LONG_TERM', status: 'ACTIVE', startDate: dayjs().subtract(30, 'days').toISOString(), endDate: dayjs().add(335, 'days').toISOString(), monthlyAmount: 1200.00, depositAmount: 2400.00, signedDate: dayjs().subtract(30, 'days').toISOString(), notes: 'Annual contract with renewal option' },
-    { id: 2, number: 'CONT-2025-002', clientId: 2, clientName: 'Quantum Solutions', spaceId: 2, spaceName: 'Meeting Room A', type: 'SHORT_TERM', status: 'PENDING', startDate: dayjs().add(7, 'days').toISOString(), endDate: dayjs().add(37, 'days').toISOString(), monthlyAmount: 800.00, depositAmount: 800.00, signedDate: null, notes: 'Renewable monthly contract' },
-    { id: 3, number: 'CONT-2024-045', clientId: 3, clientName: 'Synergy Labs', spaceId: 3, spaceName: 'Coworking Open Space', type: 'HOURLY', status: 'EXPIRED', startDate: dayjs().subtract(90, 'days').toISOString(), endDate: dayjs().subtract(10, 'days').toISOString(), monthlyAmount: 0, depositAmount: 0, signedDate: dayjs().subtract(90, 'days').toISOString(), notes: 'Expired hourly contract' }
-  ];
-  const mockClients = [
-    { id: 1, name: 'Innovate Corp', company: 'Innovate Corp' },
-    { id: 2, name: 'Quantum Solutions', company: 'Quantum Solutions' },
-    { id: 3, name: 'Synergy Labs', company: 'Synergy Labs' }
-  ];
-  const mockSpaces = [
-    { id: 1, name: 'Executive Office 1' },
-    { id: 2, name: 'Meeting Room A' },
-    { id: 3, name: 'Coworking Open Space' }
-  ];
+  const loadData = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const [contractsRes, clientsRes] = await Promise.all([
+        axios.get(`${API_URL}/contracts`, { headers: authHeaders() }),
+        axios.get(`${API_URL}/clients`, { params: { limit: 1000 }, headers: authHeaders() })
+      ])
 
-  // --- GESTIONE DATI (invariato) ---
+      const contractRows = Array.isArray(contractsRes.data) ? contractsRes.data : []
+      const clientRows = Array.isArray(clientsRes.data?.clients)
+        ? clientsRes.data.clients
+        : Array.isArray(clientsRes.data) ? clientsRes.data : []
+
+      setContracts(contractRows)
+      setClients(clientRows)
+    } catch (err) {
+      if (isDemoRestriction(err) || handleDemoRestriction(err)) {
+        setError(err.response?.data?.message || t('common.errorLoading'))
+        return
+      }
+      const errorMessage = err.response?.data?.message || err.response?.data?.error || t('common.errorLoading')
+      setError(errorMessage)
+      message.error(errorMessage)
+    } finally {
+      setLoading(false)
+    }
+  }, [t])
+
   useEffect(() => {
     loadData()
-  }, [])
+  }, [loadData])
 
-  const loadData = async () => {
-    try {
-      setLoading(true);
-      // Logica API invariata, usa i mock come fallback
-      setContracts(mockContracts);
-      setClients(mockClients);
-      setSpaces(mockSpaces);
-    } catch (error) {
-      message.error('Error loading data');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  // Funzioni CRUD (logica invariata)
   const handleAdd = () => {
     setEditingContract(null)
     form.resetFields()
     form.setFieldsValue({
       startDate: dayjs(),
-      endDate: dayjs().add(1, 'year'),
-      status: 'DRAFT',
-      type: 'LONG_TERM'
+      type: 'DOMICILIATION',
+      status: 'ACTIVE'
     })
     setIsModalVisible(true)
   }
@@ -131,103 +119,192 @@ function Contracts() {
   const handleEdit = (contract) => {
     setEditingContract(contract)
     form.setFieldsValue({
-      ...contract,
+      clientId: contract.clientId,
+      type: contract.type,
+      status: contract.status,
       startDate: dayjs(contract.startDate),
-      endDate: dayjs(contract.endDate),
+      endDate: contract.endDate ? dayjs(contract.endDate) : null,
+      amount: contract.amount,
+      content: contract.content,
       signedDate: contract.signedDate ? dayjs(contract.signedDate) : null
     })
     setIsModalVisible(true)
   }
 
-  const handleDelete = async (contractId) => {
-    Modal.confirm({
-      title: 'Confirm Deletion',
-      content: 'Are you sure you want to delete this contract?',
-      okType: 'danger',
-      onOk: () => {
-        setContracts(contracts.filter(c => c.id !== contractId))
-        message.success('Contract deleted')
-      }
-    })
-  }
-
-  const handleSubmit = async (values) => {
+  const handleSign = async (contractId) => {
     try {
-      const contractData = { ...values, startDate: values.startDate.toISOString(), endDate: values.endDate.toISOString(), signedDate: values.signedDate ? values.signedDate.toISOString() : null };
-      if (editingContract) {
-        setContracts(contracts.map(c => c.id === editingContract.id ? { ...c, ...contractData, clientName: clients.find(cl => cl.id === values.clientId)?.name, spaceName: spaces.find(s => s.id === values.spaceId)?.name } : c));
-        message.success('Contract updated');
-      } else {
-        const newContract = { id: Date.now(), number: `CONT-2025-${String(contracts.length + 1).padStart(3, '0')}`, ...contractData, clientName: clients.find(cl => cl.id === values.clientId)?.name, spaceName: spaces.find(s => s.id === values.spaceId)?.name };
-        setContracts([...contracts, newContract]);
-        message.success('Contract created');
-      }
-      setIsModalVisible(false);
-    } catch (error) {
-      message.error('Error saving contract');
+      await axios.patch(`${API_URL}/contracts/${contractId}/sign`, {}, { headers: authHeaders() })
+      message.success(t('contracts.signed'))
+      await loadData()
+    } catch (err) {
+      if (isDemoRestriction(err) || handleDemoRestriction(err)) return
+      message.error(err.response?.data?.message || err.response?.data?.error || t('contracts.saveError'))
     }
   }
 
-  const filteredContracts = filterStatus ? contracts.filter(c => c.status === filterStatus) : contracts;
+  const handleSubmit = async (values) => {
+    setSaving(true)
+    try {
+      const payload = {
+        clientId: values.clientId,
+        type: values.type,
+        startDate: values.startDate.toISOString(),
+        endDate: values.endDate ? values.endDate.toISOString() : null,
+        amount: values.amount,
+        content: values.content,
+        status: values.status,
+        signedDate: values.signedDate ? values.signedDate.toISOString() : null
+      }
 
-  // --- COLONNE TABELLA ---
-  const columns = [
-    { title: 'Number', dataIndex: 'number', key: 'number', sorter: (a, b) => a.number.localeCompare(b.number), render: (number) => <Text strong>{number}</Text> },
-    { title: 'Client', dataIndex: 'clientName', key: 'clientName', sorter: (a, b) => a.clientName.localeCompare(b.clientName) },
-    { title: 'Space', dataIndex: 'spaceName', key: 'spaceName' },
-    { title: 'Type', dataIndex: 'type', key: 'type', render: (type) => <Tag>{getTypeLabel(type)}</Tag> },
-    { title: 'Period', key: 'period', render: (_, record) => (<div><Text>{dayjs(record.startDate).format('DD/MM/YYYY')}</Text><Text type="secondary"><br />{dayjs(record.endDate).format('DD/MM/YYYY')}</Text></div>) },
-    { title: 'Monthly Amount', dataIndex: 'monthlyAmount', key: 'monthlyAmount', render: (amount) => amount > 0 ? `$${amount?.toFixed(2)}` : '-', sorter: (a, b) => (a.monthlyAmount || 0) - (b.monthlyAmount || 0) },
+      if (editingContract) {
+        await axios.put(`${API_URL}/contracts/${editingContract.id}`, payload, {
+          headers: authHeaders()
+        })
+        message.success(t('contracts.updated'))
+      } else {
+        await axios.post(`${API_URL}/contracts`, payload, {
+          headers: authHeaders()
+        })
+        message.success(t('contracts.created'))
+      }
+
+      setIsModalVisible(false)
+      setEditingContract(null)
+      form.resetFields()
+      await loadData()
+    } catch (err) {
+      if (isDemoRestriction(err) || handleDemoRestriction(err)) return
+      message.error(err.response?.data?.message || err.response?.data?.error || t('contracts.saveError'))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const filteredContracts = filterStatus
+    ? contracts.filter((c) => c.status === filterStatus)
+    : contracts
+
+  const statsCardsConfig = useMemo(() => [
     {
-      title: 'Status', dataIndex: 'status', key: 'status',
+      key: 'active',
+      title: t('contracts.activeContracts'),
+      value: contracts.filter((c) => c.status === 'ACTIVE').length,
+      icon: <FileDoneOutlined />,
+      gradient: 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)',
+      subtitle: t('contracts.currentlyInEffect')
+    },
+    {
+      key: 'expired',
+      title: t('contracts.expiredContracts'),
+      value: contracts.filter((c) => c.status === 'EXPIRED').length,
+      icon: <StopOutlined />,
+      gradient: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+      subtitle: t('contracts.noLongerValid')
+    },
+    {
+      key: 'revenue',
+      title: t('contracts.activeAmount'),
+      value: formatCurrency(
+        contracts
+          .filter((c) => c.status === 'ACTIVE')
+          .reduce((sum, c) => sum + (c.amount || 0), 0)
+      ),
+      icon: <DollarCircleOutlined />,
+      gradient: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+      subtitle: t('contracts.activeContractsTotal')
+    }
+  ], [contracts, formatCurrency, t])
+
+  const columns = [
+    {
+      title: t('common.client'),
+      key: 'client',
+      sorter: (a, b) => (a.client?.name || '').localeCompare(b.client?.name || ''),
+      render: (_, record) => record.client?.name || record.client?.company || t('bookings.unknownClient')
+    },
+    {
+      title: t('contracts.colType'),
+      dataIndex: 'type',
+      key: 'type',
+      render: (type) => <Tag>{t(`enums.contractType.${type}`, { defaultValue: type })}</Tag>
+    },
+    {
+      title: t('contracts.colPeriod'),
+      key: 'period',
+      render: (_, record) => (
+        <div>
+          <Text>{dayjs(record.startDate).format('DD/MM/YYYY')}</Text>
+          <Text type="secondary">
+            <br />
+            {record.endDate ? dayjs(record.endDate).format('DD/MM/YYYY') : '—'}
+          </Text>
+        </div>
+      )
+    },
+    {
+      title: t('contracts.colAmount'),
+      dataIndex: 'amount',
+      key: 'amount',
+      render: (amount) => formatCurrency(amount),
+      sorter: (a, b) => (a.amount || 0) - (b.amount || 0)
+    },
+    {
+      title: t('common.status'),
+      dataIndex: 'status',
+      key: 'status',
       render: (status) => {
-        const { label, color, icon } = getStatusDetails(status);
-        return <Tag color={color} icon={icon}>{label}</Tag>;
+        const { label, color, icon } = getStatusDetails(status, t)
+        return <Tag color={color} icon={icon}>{label}</Tag>
       },
-      filters: Object.entries(STATUS_CONFIG).map(([key, { label }]) => ({ text: label, value: key })),
+      filters: Object.keys(STATUS_CONFIG).map((key) => ({
+        text: t(`enums.contractStatus.${key}`),
+        value: key
+      })),
       onFilter: (value, record) => record.status === value
     },
-    { title: 'Actions', key: 'actions', align: 'right', render: (_, record) => (<Space><Tooltip title="Edit"><Button type="text" icon={<EditOutlined />} onClick={() => handleEdit(record)} /></Tooltip><Tooltip title="Download PDF"><Button type="text" icon={<DownloadOutlined />} /></Tooltip><Tooltip title="Delete"><Button type="text" danger icon={<DeleteOutlined />} onClick={() => handleDelete(record.id)}/></Tooltip></Space>) }
-  ];
-
-  // --- CARD STATISTICHE ---
-  const statsCardsConfig = [
-    { key: 'active', title: "Active Contracts", value: contracts.filter(c => c.status === 'ACTIVE').length, icon: <FileDoneOutlined />, gradient: 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)', subtitle: 'Currently in effect' },
-    { key: 'pending', title: "Pending Contracts", value: contracts.filter(c => c.status === 'PENDING').length, icon: <FileSyncOutlined />, gradient: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)', subtitle: 'Awaiting activation' },
-    { key: 'revenue', title: "Active Monthly Revenue", value: `$${contracts.filter(c => c.status === 'ACTIVE').reduce((sum, c) => sum + (c.monthlyAmount || 0), 0).toFixed(2)}`, icon: <DollarCircleOutlined />, gradient: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)', subtitle: 'Estimated monthly income' }
-  ];
+    {
+      title: t('common.actions'),
+      key: 'actions',
+      align: 'right',
+      render: (_, record) => (
+        <Space>
+          <Tooltip title={t('common.edit')}>
+            <Button type="text" icon={<EditOutlined />} onClick={() => handleEdit(record)} />
+          </Tooltip>
+          {!record.signedDate && (
+            <Tooltip title={t('contracts.sign')}>
+              <Button type="text" icon={<FormOutlined />} onClick={() => handleSign(record.id)} />
+            </Tooltip>
+          )}
+        </Space>
+      )
+    }
+  ]
 
   return (
     <div style={{ padding: '24px' }}>
-      {/* HEADER */}
       <Row justify="space-between" align="middle" style={{ marginBottom: 32 }}>
         <Col>
           <Title level={2} style={{ margin: 0 }}>
             <FileTextOutlined style={{ marginRight: 12, color: '#1890ff' }} />
-            Contracts Management
+            {t('contracts.title')}
           </Title>
           <Text type="secondary" style={{ fontSize: 16 }}>
-            Oversee all client agreements and financial terms.
+            {t('contracts.subtitle')}
           </Text>
         </Col>
         <Col>
-          <Button
-            type="primary"
-            size="large"
-            icon={<PlusOutlined />}
-            onClick={handleAdd}
-          >
-            New Contract
+          <Button type="primary" size="large" icon={<PlusOutlined />} onClick={handleAdd}>
+            {t('contracts.newContract')}
           </Button>
         </Col>
       </Row>
 
-      {/* STATISTICHE */}
       <Row gutter={[24, 24]} style={{ marginBottom: 32 }}>
-        {statsCardsConfig.map(config => (
+        {statsCardsConfig.map((config) => (
           <Col xs={24} sm={12} md={8} key={config.key}>
-            <Card hoverable style={{ borderRadius: 16, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }} bodyStyle={{ padding: 0 }}>
-              <div style={{ background: config.gradient, padding: '24px', position: 'relative', borderTopLeftRadius: 16, borderTopRightRadius: 16 }}>
+            <Card hoverable styles={{ body: { padding: 0 } }} style={{ borderRadius: 16, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }}>
+              <div style={{ background: config.gradient, padding: '24px', borderTopLeftRadius: 16, borderTopRightRadius: 16 }}>
                 <Avatar size={48} style={{ backgroundColor: 'rgba(255,255,255,0.2)', color: 'white' }} icon={config.icon} />
                 <Title level={4} style={{ color: 'white', margin: '12px 0 0', textShadow: '0 2px 4px rgba(0,0,0,0.2)' }}>{config.title}</Title>
               </div>
@@ -240,59 +317,137 @@ function Contracts() {
         ))}
       </Row>
 
-      {/* TABELLA CONTRATTI */}
       <Card style={{ borderRadius: 16, border: 'none', boxShadow: '0 2px 10px rgba(0,0,0,0.05)' }}>
-         <Row style={{ marginBottom: 24 }}>
+        <Row style={{ marginBottom: 24 }}>
           <Col>
             <Select
-              placeholder="Filter by status"
+              placeholder={t('common.filterByStatus')}
               style={{ width: 200 }}
               value={filterStatus}
-              onChange={(value) => setFilterStatus(value)}
+              onChange={setFilterStatus}
               allowClear
               size="large"
             >
-              {Object.entries(STATUS_CONFIG).map(([key, { label, icon }]) => (
-                <Option key={key} value={key}>{React.cloneElement(icon, { style: { marginRight: 8 } })}{label}</Option>
+              {Object.entries(STATUS_CONFIG).map(([key, { icon }]) => (
+                <Option key={key} value={key}>
+                  {React.cloneElement(icon, { style: { marginRight: 8 } })}
+                  {t(`enums.contractStatus.${key}`)}
+                </Option>
               ))}
             </Select>
           </Col>
         </Row>
-        <Table
-          columns={columns}
-          dataSource={filteredContracts}
-          loading={loading}
-          rowKey="id"
-          pagination={{ pageSize: 10, showSizeChanger: true, showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} contracts` }}
-        />
+
+        {loading && contracts.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '80px' }}>
+            <Spin size="large" />
+            <Text style={{ marginTop: 16, display: 'block' }}>{t('contracts.loading')}</Text>
+          </div>
+        ) : error ? (
+          <div style={{ textAlign: 'center', padding: '60px' }}>
+            <FileTextOutlined style={{ fontSize: 48, marginBottom: 16, color: '#ff4d4f' }} />
+            <Title level={3}>{t('common.errorLoading')}</Title>
+            <Text style={{ fontSize: 16, display: 'block', marginBottom: 24 }}>{error}</Text>
+            <Button type="primary" onClick={loadData}>{t('contracts.retry')}</Button>
+          </div>
+        ) : !loading && contracts.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '60px' }}>
+            <FileTextOutlined style={{ fontSize: 48, marginBottom: 16, color: '#4F46E5' }} />
+            <Title level={3}>{t('contracts.emptyTitle')}</Title>
+            <Text style={{ fontSize: 16 }}>{t('contracts.emptyText')}</Text>
+          </div>
+        ) : (
+          <Table
+            columns={columns}
+            dataSource={filteredContracts}
+            loading={loading}
+            rowKey="id"
+            pagination={{
+              pageSize: 10,
+              showSizeChanger: true,
+              showTotal: (total, range) => t('contracts.pagination', { from: range[0], to: range[1], total })
+            }}
+            locale={{ emptyText: t('contracts.emptyTitle') }}
+          />
+        )}
       </Card>
 
-      {/* MODALE CREA/MODIFICA CONTRATTO (logica invariata) */}
-      <Modal title={editingContract ? 'Edit Contract' : 'New Contract'} open={isModalVisible} onCancel={() => setIsModalVisible(false)} width={800} footer={null} destroyOnClose>
+      <Modal
+        title={editingContract ? t('contracts.editContract') : t('contracts.newContract')}
+        open={isModalVisible}
+        onCancel={() => !saving && setIsModalVisible(false)}
+        width={800}
+        footer={null}
+        destroyOnClose
+        maskClosable={!saving}
+      >
         <Form form={form} layout="vertical" onFinish={handleSubmit} style={{ marginTop: 24 }}>
+          <Form.Item name="clientId" label={t('common.client')} rules={[{ required: true, message: t('common.required') }]}>
+            <Select showSearch optionFilterProp="children" placeholder={t('contracts.selectClient')}>
+              {clients.map((c) => (
+                <Option key={c.id} value={c.id}>{c.name}</Option>
+              ))}
+            </Select>
+          </Form.Item>
           <Row gutter={16}>
-            <Col span={12}><Form.Item name="clientId" label="Client" rules={[{ required: true }]}><Select showSearch optionFilterProp="children" placeholder="Select a client">{clients.map(c => (<Option key={c.id} value={c.id}>{c.name}</Option>))}</Select></Form.Item></Col>
-            <Col span={12}><Form.Item name="spaceId" label="Space" rules={[{ required: true }]}><Select showSearch optionFilterProp="children" placeholder="Select a space">{spaces.map(s => (<Option key={s.id} value={s.id}>{s.name}</Option>))}</Select></Form.Item></Col>
+            <Col span={12}>
+              <Form.Item name="type" label={t('contracts.contractType')} rules={[{ required: true, message: t('common.required') }]}>
+                <Select>
+                  {CONTRACT_TYPES.map((k) => (
+                    <Option key={k} value={k}>{t(`enums.contractType.${k}`)}</Option>
+                  ))}
+                </Select>
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="status" label={t('common.status')}>
+                <Select allowClear>
+                  {Object.keys(STATUS_CONFIG).map((key) => (
+                    <Option key={key} value={key}>{t(`enums.contractStatus.${key}`)}</Option>
+                  ))}
+                </Select>
+              </Form.Item>
+            </Col>
           </Row>
           <Row gutter={16}>
-            <Col span={12}><Form.Item name="type" label="Contract Type" rules={[{ required: true }]}><Select>{Object.entries({ HOURLY: 'Hourly', SHORT_TERM: 'Short Term', LONG_TERM: 'Long Term', PERMANENT: 'Permanent' }).map(([k, v]) => <Option key={k} value={k}>{v}</Option>)}</Select></Form.Item></Col>
-            <Col span={12}><Form.Item name="status" label="Status" rules={[{ required: true }]}><Select>{Object.entries(STATUS_CONFIG).map(([key, { label }]) => <Option key={key} value={key}>{label}</Option>)}</Select></Form.Item></Col>
+            <Col span={12}>
+              <Form.Item name="startDate" label={t('contracts.startDate')} rules={[{ required: true, message: t('common.required') }]}>
+                <DatePicker style={{ width: '100%' }} />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="endDate" label={t('contracts.endDate')}>
+                <DatePicker style={{ width: '100%' }} />
+              </Form.Item>
+            </Col>
           </Row>
           <Row gutter={16}>
-            <Col span={12}><Form.Item name="startDate" label="Start Date" rules={[{ required: true }]}><DatePicker style={{ width: '100%' }} /></Form.Item></Col>
-            <Col span={12}><Form.Item name="endDate" label="End Date" rules={[{ required: true }]}><DatePicker style={{ width: '100%' }} /></Form.Item></Col>
+            <Col span={12}>
+              <Form.Item name="amount" label={t('contracts.amount')} rules={[{ required: true, message: t('common.required') }]}>
+                <InputNumber min={0} step={0.01} style={{ width: '100%' }} placeholder="0.00" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="signedDate" label={t('contracts.signedDate')}>
+                <DatePicker style={{ width: '100%' }} />
+              </Form.Item>
+            </Col>
           </Row>
-          <Row gutter={16}>
-            <Col span={8}><Form.Item name="monthlyAmount" label="Monthly Amount ($)"><InputNumber min={0} step={0.01} style={{ width: '100%' }} placeholder="0.00" /></Form.Item></Col>
-            <Col span={8}><Form.Item name="depositAmount" label="Deposit ($)"><InputNumber min={0} step={0.01} style={{ width: '100%' }} placeholder="0.00" /></Form.Item></Col>
-            <Col span={8}><Form.Item name="signedDate" label="Signed Date"><DatePicker style={{ width: '100%' }} /></Form.Item></Col>
+          <Form.Item name="content" label={t('contracts.content')} rules={[{ required: true, message: t('common.required') }]}>
+            <TextArea rows={4} placeholder={t('contracts.contentPlaceholder')} />
+          </Form.Item>
+          <Row justify="end">
+            <Space>
+              <Button onClick={() => setIsModalVisible(false)} disabled={saving}>{t('common.cancel')}</Button>
+              <Button type="primary" htmlType="submit" loading={saving}>
+                {editingContract ? t('common.update') : t('common.create')}
+              </Button>
+            </Space>
           </Row>
-          <Form.Item name="notes" label="Notes"><TextArea rows={3} placeholder="Additional notes..." /></Form.Item>
-          <Row justify="end"><Space><Button onClick={() => setIsModalVisible(false)}>Cancel</Button><Button type="primary" htmlType="submit">{editingContract ? 'Update' : 'Create'}</Button></Space></Row>
         </Form>
       </Modal>
     </div>
   )
 }
 
-export default Contracts;
+export default Contracts

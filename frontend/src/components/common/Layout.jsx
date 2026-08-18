@@ -8,8 +8,10 @@ import {
   Avatar,
   Dropdown,
   Breadcrumb,
-  Badge
+  Badge,
+  Tooltip
 } from 'antd'
+import { useTranslation } from 'react-i18next'
 import {
   DashboardOutlined,
   HomeOutlined,
@@ -28,61 +30,70 @@ import { logout } from '../../store/slices/authSlice'
 
 const { Header, Sider, Content } = AntLayout
 
+const LANGUAGES = [
+  { code: 'en', flag: '🇬🇧', label: 'English' },
+  { code: 'it', flag: '🇮🇹', label: 'Italiano' },
+  { code: 'de', flag: '🇩🇪', label: 'Deutsch' },
+  { code: 'es', flag: '🇪🇸', label: 'Español' }
+]
+
 function Layout() {
+  const { t, i18n } = useTranslation()
   const [collapsed, setCollapsed] = useState(false)
   const navigate = useNavigate()
   const location = useLocation()
   const dispatch = useDispatch()
   const { user } = useSelector(state => state.auth)
+  const currentLang = (i18n.resolvedLanguage || i18n.language || 'en').split('-')[0]
 
   const menuItems = [
     {
       key: '/dashboard',
       icon: <DashboardOutlined />,
-      label: 'Dashboard'
+      label: t('nav.dashboard')
     },
     {
       key: '/spaces',
       icon: <HomeOutlined />,
-      label: 'Spaces'
+      label: t('nav.spaces')
     },
     {
       key: '/clients',
       icon: <UserOutlined />,
-      label: 'Clients'
+      label: t('nav.clients')
     },
     {
       key: '/bookings',
       icon: <CalendarOutlined />,
-      label: 'Bookings'
+      label: t('nav.bookings')
     },
     {
       key: '/contracts',
       icon: <FileTextOutlined />,
-      label: 'Contracts'
+      label: t('nav.contracts')
     },
     {
       key: '/billing',
       icon: <DollarOutlined />,
-      label: 'Billing'
+      label: t('nav.billing')
     },
     {
       key: '/reports',
       icon: <BarChartOutlined />,
-      label: 'Reports'
+      label: t('nav.reports')
     }
   ]
 
   const userMenuItems = [
     {
       key: 'profile',
-      label: 'Profile',
+      label: t('nav.profile'),
       icon: <UserOutlined />,
       onClick: () => navigate('/profile')
     },
     {
       key: 'settings',
-      label: 'Settings',
+      label: t('nav.settings'),
       icon: <SettingOutlined />,
       onClick: () => navigate('/settings')
     },
@@ -91,7 +102,7 @@ function Layout() {
     },
     {
       key: 'logout',
-      label: 'Logout',
+      label: t('nav.logout'),
       icon: <LogoutOutlined />,
       onClick: handleLogout
     }
@@ -110,7 +121,7 @@ function Layout() {
     const pathnames = location.pathname.split('/').filter(x => x)
     const breadcrumbItems = [
       {
-        title: 'Home',
+        title: t('nav.home'),
         href: '/dashboard'
       }
     ]
@@ -119,7 +130,7 @@ function Layout() {
       const routeTo = `/${pathnames.slice(0, index + 1).join('/')}`
       const isLast = index === pathnames.length - 1
       
-      let title = name.charAt(0).toUpperCase() + name.slice(1)
+      let title = t(`nav.${name}`, { defaultValue: name.charAt(0).toUpperCase() + name.slice(1) })
       
       breadcrumbItems.push({
         title: isLast ? title : <a href={routeTo}>{title}</a>
@@ -153,7 +164,7 @@ function Layout() {
           WebkitTextFillColor: 'transparent',
           backgroundClip: 'text'
         }}>
-          {!collapsed && 'CoworkSpace Pro'}
+          {!collapsed && t('nav.brand')}
         </div>
         
         <Menu
@@ -193,6 +204,37 @@ function Layout() {
                 style={{ fontSize: 16 }}
               />
             </Badge>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {LANGUAGES.map(({ code, flag, label }) => {
+                const isActive = currentLang === code
+                return (
+                  <Tooltip key={code} title={label}>
+                    <span
+                      onClick={() => i18n.changeLanguage(code)}
+                      onMouseEnter={(e) => {
+                        if (!isActive) e.currentTarget.style.opacity = '0.8'
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!isActive) e.currentTarget.style.opacity = '0.45'
+                      }}
+                      style={{
+                        fontSize: 20,
+                        lineHeight: 1,
+                        cursor: 'pointer',
+                        opacity: isActive ? 1 : 0.45,
+                        transform: isActive ? 'scale(1.15)' : 'scale(1)',
+                        transition: 'all 0.2s ease',
+                        display: 'inline-block',
+                        userSelect: 'none'
+                      }}
+                    >
+                      {flag}
+                    </span>
+                  </Tooltip>
+                )
+              })}
+            </div>
             
             <Dropdown
               menu={{ items: userMenuItems }}
@@ -212,7 +254,7 @@ function Layout() {
                   {user?.name?.charAt(0) || 'U'}
                 </Avatar>
                 <span style={{ fontWeight: 500 }}>
-                  {user?.name || 'User'}
+                  {user?.name || t('nav.userFallback')}
                 </span>
               </div>
             </Dropdown>

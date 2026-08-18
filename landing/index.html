@@ -131,6 +131,14 @@
             z-index: 10;
         }
         
+        .hero-badges {
+            display: flex;
+            gap: 0.75rem;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-bottom: 1rem;
+        }
+
         .beta-badge {
             display: inline-block;
             background: rgba(255, 255, 255, 0.2);
@@ -139,9 +147,31 @@
             border-radius: 20px;
             font-size: 0.9rem;
             font-weight: 600;
-            margin-bottom: 1rem;
             backdrop-filter: blur(12px);
             border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .live-demo-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .pulse-dot {
+            width: 8px;
+            height: 8px;
+            background: #22c55e;
+            border-radius: 50%;
+            box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.6);
+            animation: pulse-dot 1.6s ease-out infinite;
         }
         
         .hero h1 {
@@ -204,6 +234,41 @@
         .btn-secondary:hover {
             background: rgba(255, 255, 255, 0.1);
             border-color: rgba(255, 255, 255, 0.5);
+        }
+
+        .hero-demo-credentials {
+            background: linear-gradient(135deg, rgba(79, 70, 229, 0.05) 0%, rgba(6, 182, 212, 0.05) 100%);
+            background-color: rgba(255, 255, 255, 0.95);
+            border: 1px solid rgba(79, 70, 229, 0.1);
+            border-radius: 16px;
+            padding: 1.25rem 1.5rem;
+            max-width: 380px;
+            margin: 0 auto 2.5rem;
+            text-align: center;
+            backdrop-filter: blur(10px);
+        }
+
+        .hero-demo-credentials .cred-label {
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #64748B;
+            margin-bottom: 0.5rem;
+        }
+
+        .hero-demo-credentials .cred-lines {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 0.9rem;
+            color: #374151;
+            line-height: 1.6;
+        }
+
+        .hero-demo-credentials p {
+            font-size: inherit;
+            color: inherit;
+            margin: 0;
+            max-width: none;
         }
         
         /* Demo Preview */
@@ -378,64 +443,6 @@
             font-size: 1.1rem;
         }
         
-        /* Waitlist Form */
-        .waitlist-form {
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 16px;
-            padding: 2rem;
-            backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            max-width: 500px;
-            margin: 2rem auto;
-        }
-        
-        .waitlist-form h3 {
-            margin-bottom: 1rem;
-            color: white;
-        }
-        
-        .form-group {
-            margin-bottom: 1rem;
-        }
-        
-        .form-group input {
-            width: 100%;
-            padding: 1rem;
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            border-radius: 8px;
-            background: rgba(255, 255, 255, 0.1);
-            color: white;
-            font-size: 1rem;
-        }
-        
-        .form-group input::placeholder {
-            color: rgba(255, 255, 255, 0.7);
-        }
-        
-        .form-group input:focus {
-            outline: none;
-            border-color: rgba(255, 255, 255, 0.6);
-            background: rgba(255, 255, 255, 0.15);
-        }
-        
-        .submit-btn {
-            width: 100%;
-            background: rgba(255, 255, 255, 0.9);
-            color: #4F46E5;
-            border: none;
-            padding: 1rem;
-            border-radius: 8px;
-            font-weight: 600;
-            font-size: 1rem;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-        
-        .submit-btn:hover {
-            background: white;
-            transform: translateY(-1px);
-        }
-        
         /* CTA Section */
         .cta-section {
             padding: 6rem 2rem;
@@ -596,6 +603,12 @@
             0%, 100% { transform: translateY(0px) rotate(0deg); }
             50% { transform: translateY(-20px) rotate(180deg); }
         }
+
+        @keyframes pulse-dot {
+            0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.6); }
+            70% { box-shadow: 0 0 0 8px rgba(34, 197, 94, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+        }
         
         .fade-in {
             opacity: 0;
@@ -614,7 +627,7 @@
 <body>
     <!-- Early Access Banner -->
     <div class="early-access-banner">
-        🚀 Early Access Demo - Join the waitlist for exclusive access to the full version
+        🚀 Live Demo Available — try the full product now
     </div>
 
     <!-- Header -->
@@ -626,43 +639,37 @@
                 <li><a href="#plans">Plans</a></li>
                 <li><a href="#demo">Demo</a></li>
             </ul>
-            <a href="#waitlist" class="cta-button">Join Waitlist</a>
+            <a href="https://coworkspace-manager-pro.vercel.app/dashboard" class="cta-button" target="_blank" rel="noopener noreferrer">Launch Demo</a>
         </nav>
     </header>
 
     <!-- Hero Section -->
     <section class="hero">
         <div class="hero-content">
-            <div class="beta-badge">🔥 Early Access Demo</div>
+            <div class="hero-badges fade-in">
+                <div class="live-demo-badge">
+                    <span class="pulse-dot" aria-hidden="true"></span>
+                    Live Demo Available
+                </div>
+                <div class="beta-badge">🔥 Early Access Demo</div>
+            </div>
             <h1 class="fade-in">The Future of Coworking Management</h1>
             <p class="fade-in">Experience the complete software to manage bookings, clients, billing and analytics. Modern design, advanced technology, proven results.</p>
             
             <div class="hero-buttons fade-in">
-                <a href="#waitlist" class="btn-primary">Join Early Access</a>
-                <a href="#waitlist" class="btn-secondary">Join Waitlist</a>
+                <a href="https://coworkspace-manager-pro.vercel.app/dashboard" class="btn-primary" target="_blank" rel="noopener noreferrer">Launch Demo</a>
+            </div>
+
+            <div class="hero-demo-credentials fade-in">
+                <div class="cred-label">Demo Credentials</div>
+                <p class="cred-lines">
+                    <strong>Email:</strong> admin@opuscentersrl.it<br>
+                    <strong>Password:</strong> admin123
+                </p>
             </div>
             
             <div class="demo-preview fade-in">
                 <img src="dashboard_eng.png" alt="CoworkSpace Manager Pro Dashboard" />
-            </div>
-            
-            <div class="waitlist-form fade-in" id="waitlist">
-                <h3>Get Early Access</h3>
-                <form id="waitlistForm">
-                    <div class="form-group">
-                        <input type="text" placeholder="Your Name" required>
-                    </div>
-                    <div class="form-group">
-                        <input type="email" placeholder="Your Email" required>
-                    </div>
-                    <div class="form-group">
-                        <input type="text" placeholder="Company Name (Optional)">
-                    </div>
-                    <button type="submit" class="submit-btn">Join Waitlist</button>
-                </form>
-                <div class="privacy-note">
-                    By joining the waitlist, you agree to receive updates about CoworkSpace Pro. We respect your privacy and will never share your data.
-                </div>
             </div>
         </div>
     </section>
@@ -711,6 +718,12 @@
                     <h3>Smart Reports</h3>
                     <p>Advanced analytics, trend analysis and automatic insights to make data-driven decisions.</p>
                 </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">🌐</div>
+                    <h3>Multilingual</h3>
+                    <p>Available in English, Italiano, Deutsch, Español. GB / IT / DE / ES.</p>
+                </div>
             </div>
         </div>
     </section>
@@ -720,7 +733,7 @@
         <div class="container">
             <div class="section-title">
                 <h2>Planned Pricing Tiers</h2>
-                <p>Join the waitlist to get special launch pricing when we go live</p>
+                <p>Special launch pricing when we go live</p>
             </div>
             
             <div class="pricing-grid">
@@ -735,7 +748,7 @@
                         <li>Email support</li>
                         <li>Daily backup</li>
                     </ul>
-                    <a href="#waitlist" class="cta-button" style="width: 100%; text-align: center; display: block;">Join Waitlist</a>
+                    <a href="https://coworkspace-manager-pro.vercel.app/dashboard" class="cta-button" style="width: 100%; text-align: center; display: block;" target="_blank" rel="noopener noreferrer">Launch Demo</a>
                 </div>
                 
                 <div class="pricing-card featured">
@@ -751,7 +764,7 @@
                         <li>Priority support</li>
                         <li>API access</li>
                     </ul>
-                    <a href="#waitlist" class="cta-button" style="width: 100%; text-align: center; display: block;">Get Early Access</a>
+                    <a href="https://coworkspace-manager-pro.vercel.app/dashboard" class="cta-button" style="width: 100%; text-align: center; display: block;" target="_blank" rel="noopener noreferrer">Launch Demo</a>
                 </div>
                 
                 <div class="pricing-card">
@@ -779,14 +792,13 @@
             <h2>Try Our Live Demo</h2>
             <p>Experience the full functionality with our interactive demo. No signup required.</p>
             <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
-                <a href="#waitlist" class="btn-primary" style="background: white; color: #4F46E5;">🚀 Join Early Access</a>
+                <a href="https://coworkspace-manager-pro.vercel.app/dashboard" class="btn-primary" style="background: white; color: #4F46E5;" target="_blank" rel="noopener noreferrer">🚀 Launch Demo</a>
                 <a href="mailto:francesco.ciardo@coworkspace-pro.com" class="btn-secondary">Request Information</a>
             </div>
             
             <div class="demo-credentials">
-                <h3 style="margin-bottom: 1rem;">Demo Coming Soon</h3>
-                <p>Interactive demo will be available to early access members.<br>
-                Join the waitlist above to be notified when it goes live.</p>
+                <h3 style="margin-bottom: 1rem;">Live Demo</h3>
+                <p>The interactive demo is available now. No signup required.</p>
                 <p style="margin-top: 1rem; font-size: 0.9rem; opacity: 0.8;">
                     Full-featured demo with sample data and all functionalities included!
                 </p>
@@ -837,22 +849,6 @@
                     });
                 }
             });
-        });
-
-        // Waitlist form handling
-        document.getElementById('waitlistForm').addEventListener('submit', function(e) {
-            e.preventDefault();
-            
-            // Simple form handling - replace with your actual endpoint
-            const formData = new FormData(this);
-            const name = this.querySelector('input[type="text"]').value;
-            const email = this.querySelector('input[type="email"]').value;
-            
-            // For demo purposes, just show success message
-            alert(`Thanks ${name}! We'll contact you at ${email} when we launch.`);
-            
-            // Reset form
-            this.reset();
         });
 
         // Cookie consent handling

@@ -34,8 +34,7 @@ export const login = async (req, res) => {
       user: {
         id: user.id,
         email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
+        name: user.name,
         role: user.role
       }
     })
@@ -52,8 +51,7 @@ export const getProfile = async (req, res) => {
       select: {
         id: true,
         email: true,
-        firstName: true,
-        lastName: true,
+        name: true,
         role: true
       }
     })

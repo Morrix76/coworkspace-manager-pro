@@ -1,7 +1,13 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
 import axios from 'axios'
+import { isDemoRestriction } from '../../utils/demoError'
 
 const API_URL = import.meta.env.VITE_API_URL
+
+const demoOrFallback = (error, fallback) =>
+  isDemoRestriction(error)
+    ? error.response.data.message
+    : (error.response?.data?.message || fallback)
 
 // Async Thunks
 export const fetchClients = createAsyncThunk(
@@ -36,7 +42,7 @@ export const createClient = createAsyncThunk(
       })
       return response.data
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Errore nella creazione cliente')
+      return rejectWithValue(demoOrFallback(error, 'Errore nella creazione cliente'))
     }
   }
 )
@@ -51,7 +57,7 @@ export const updateClient = createAsyncThunk(
       })
       return response.data
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Errore nell\'aggiornamento cliente')
+      return rejectWithValue(demoOrFallback(error, 'Errore nell\'aggiornamento cliente'))
     }
   }
 )
@@ -66,7 +72,7 @@ export const deleteClient = createAsyncThunk(
       })
       return clientId
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Errore nell\'eliminazione cliente')
+      return rejectWithValue(demoOrFallback(error, 'Errore nell\'eliminazione cliente'))
     }
   }
 )
@@ -136,7 +142,7 @@ export const importClients = createAsyncThunk(
       })
       return response.data
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Errore nell\'importazione')
+      return rejectWithValue(demoOrFallback(error, 'Errore nell\'importazione'))
     }
   }
 )

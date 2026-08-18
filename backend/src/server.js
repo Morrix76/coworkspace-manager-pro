@@ -11,6 +11,7 @@ import clientsRoutes from './routes/clients.js'
 import contractsRoutes from './routes/contracts.js'
 import billingRoutes from './routes/billing.js'
 import reportsRoutes from './routes/reports.js'
+import { demoMode } from './middleware/demoMode.js'
 
 dotenv.config()
 
@@ -35,11 +36,11 @@ app.get('/test', (req, res) => {
 
 // Routes
 app.use('/api/auth', authRoutes)
-app.use('/api/spaces', spacesRoutes)
-app.use('/api/bookings', bookingsRoutes)
-app.use('/api/clients', clientsRoutes)
-app.use('/api/contracts', contractsRoutes)
-app.use('/api/billing', billingRoutes)
+app.use('/api/spaces', demoMode, spacesRoutes)
+app.use('/api/bookings', demoMode, bookingsRoutes)
+app.use('/api/clients', demoMode, clientsRoutes)
+app.use('/api/contracts', demoMode, contractsRoutes)
+app.use('/api/billing', demoMode, billingRoutes)
 app.use('/api/reports', reportsRoutes)
 
 app.listen(PORT, () => {

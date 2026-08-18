@@ -158,18 +158,6 @@ export const getClientsReport = async (req, res) => {
   try {
     const { startDate, endDate } = req.query
     
-    // Client segments
-    const segments = await prisma.client.groupBy({
-      by: ['segment'],
-      where: { active: true },
-      _count: { segment: true }
-    })
-    
-    const segmentData = segments.map(s => ({
-      name: s.segment,
-      count: s._count.segment
-    }))
-    
     // Top clients by revenue
     const topClients = await prisma.client.findMany({
       where: { active: true },
@@ -200,7 +188,6 @@ export const getClientsReport = async (req, res) => {
     .slice(0, 10)
 
     res.json({
-      segments: segmentData,
       topClients: clientStats,
       totalClients: topClients.length
     })

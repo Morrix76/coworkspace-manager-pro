@@ -19,20 +19,22 @@ import {
   Analytics as ReportsIcon
 } from '@mui/icons-material'
 import { useNavigate, useLocation } from 'react-router-dom'
-
-const menuItems = [
-  { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
-  { text: 'Spazi', icon: <SpacesIcon />, path: '/spaces' },
-  { text: 'Prenotazioni', icon: <BookingsIcon />, path: '/bookings' },
-  { text: 'Clienti', icon: <ClientsIcon />, path: '/clients' },
-  { text: 'Contratti', icon: <ContractsIcon />, path: '/contracts' },
-  { text: 'Fatturazione', icon: <BillingIcon />, path: '/billing' },
-  { text: 'Reports', icon: <ReportsIcon />, path: '/reports' },
-]
+import { useTranslation } from 'react-i18next'
 
 function Sidebar() {
   const navigate = useNavigate()
   const location = useLocation()
+  const { t } = useTranslation()
+
+  const menuItems = [
+    { text: t('nav.dashboard'), icon: <DashboardIcon />, path: '/dashboard' },
+    { text: t('nav.spaces'), icon: <SpacesIcon />, path: '/spaces' },
+    { text: t('nav.bookings'), icon: <BookingsIcon />, path: '/bookings' },
+    { text: t('nav.clients'), icon: <ClientsIcon />, path: '/clients' },
+    { text: t('nav.contracts'), icon: <ContractsIcon />, path: '/contracts' },
+    { text: t('nav.billing'), icon: <BillingIcon />, path: '/billing' },
+    { text: t('nav.reports'), icon: <ReportsIcon />, path: '/reports' },
+  ]
 
   return (
     <Drawer
@@ -48,12 +50,12 @@ function Sidebar() {
     >
       <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
         <Typography variant="h6" noWrap>
-          Opus Center
+          {t('sidebar.brand')}
         </Typography>
       </Box>
       <List>
         {menuItems.map((item) => (
-          <ListItem key={item.text} disablePadding>
+          <ListItem key={item.path} disablePadding>
             <ListItemButton
               selected={location.pathname === item.path}
               onClick={() => navigate(item.path)}

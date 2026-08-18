@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { Provider } from 'react-redux';
 import { ConfigProvider, App as AntApp } from 'antd';
@@ -30,34 +30,7 @@ const globalStyles = `
   body { font-family: 'Inter', sans-serif; }
 `;
 
-// --- DATI MOCK CENTRALI ---
-const initialMockSpaces = [
-    { id: 1, name: 'The Hub', type: 'COWORKING', isActive: true, capacity: 50, hourlyRate: 15, dailyRate: 100, amenities: 'WiFi, Coffee/Kitchen', _count: { bookings: 45 } },
-    { id: 2, name: 'Boardroom A', type: 'MEETING_ROOM', isActive: true, capacity: 12, hourlyRate: 75, dailyRate: 500, amenities: 'WiFi, Projector/Screen, Whiteboard', _count: { bookings: 12 } },
-    { id: 3, name: 'Quiet Pod 3', type: 'PHONE_BOOTH', isActive: false, capacity: 1, hourlyRate: 25, dailyRate: 150, amenities: 'WiFi, Power Outlets', _count: { bookings: 21 } }
-];
-
 function App() {
-  // --- STATO CENTRALE PER GLI SPAZI ---
-  const [spaces, setSpaces] = useState(initialMockSpaces);
-
-  // Funzione per aggiungere un nuovo spazio alla lista centrale
-  const handleAddSpace = (newSpaceData) => {
-    const spaceToAdd = {
-      ...newSpaceData,
-      id: Date.now(), // ID temporaneo per la demo
-      _count: { bookings: 0 }
-    };
-    setSpaces(prevSpaces => [...prevSpaces, spaceToAdd]);
-  };
-  
-  // Funzione per modificare uno spazio esistente
-  const handleUpdateSpace = (spaceId, updatedData) => {
-    setSpaces(prevSpaces => prevSpaces.map(space => 
-      space.id === spaceId ? { ...space, ...updatedData } : space
-    ));
-  };
-
   React.useEffect(() => {
     const styleElement = document.createElement('style');
     styleElement.textContent = globalStyles;
@@ -75,10 +48,9 @@ function App() {
               <Route index element={<Navigate to="/dashboard" replace />} />
               <Route path="dashboard" element={<Dashboard />} />
               
-              {/* --- PASSAGGIO DATI E FUNZIONI ALLE PAGINE --- */}
-              <Route path="spaces" element={<Spaces spacesData={spaces} />} />
-              <Route path="spaces/new" element={<SpaceForm onSave={handleAddSpace} />} />
-              <Route path="spaces/edit/:spaceId" element={<SpaceForm spacesData={spaces} onSave={handleUpdateSpace} />} />
+              <Route path="spaces" element={<Spaces />} />
+              <Route path="spaces/new" element={<SpaceForm />} />
+              <Route path="spaces/edit/:spaceId" element={<SpaceForm />} />
 
               <Route path="clients" element={<Clients />} />
               <Route path="bookings" element={<Bookings />} />

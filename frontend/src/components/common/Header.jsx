@@ -11,12 +11,14 @@ import {
 } from '@mui/material'
 import { LogoutOutlined } from '@mui/icons-material'
 import { useSelector, useDispatch } from 'react-redux'
+import { useTranslation } from 'react-i18next'
 import { logout } from '../../store/slices/authSlice'
 
 function Header() {
   const dispatch = useDispatch()
   const { user } = useSelector((state) => state.auth)
   const [anchorEl, setAnchorEl] = React.useState(null)
+  const { t } = useTranslation()
 
   const handleMenu = (event) => {
     setAnchorEl(event.currentTarget)
@@ -40,7 +42,7 @@ function Header() {
     >
       <Toolbar>
         <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-          Gestionale
+          {t('header.appName')}
         </Typography>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           <Typography variant="body2">
@@ -59,7 +61,7 @@ function Header() {
           >
             <MenuItem onClick={handleLogout}>
               <LogoutOutlined sx={{ mr: 1 }} />
-              Logout
+              {t('header.logout')}
             </MenuItem>
           </Menu>
         </Box>

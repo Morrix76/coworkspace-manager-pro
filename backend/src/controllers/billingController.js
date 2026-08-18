@@ -82,7 +82,11 @@ export const getInvoice = async (req, res) => {
 
 export const createInvoice = async (req, res) => {
   try {
-    const { clientId, bookingId, amount, taxAmount, dueDate, notes } = req.body
+    const { clientId, bookingId, amount, taxAmount, dueDate } = req.body
+
+    if (!clientId || amount === undefined || !dueDate) {
+      return res.status(400).json({ error: 'clientId, amount, and dueDate are required' })
+    }
     
     // Generate invoice number
     const invoiceCount = await prisma.invoice.count()
@@ -120,7 +124,6 @@ export const createInvoice = async (req, res) => {
         amount: parseFloat(amount),
         taxAmount: parseFloat(taxAmount) || 0,
         dueDate: new Date(dueDate),
-        notes: notes || null,
         status: 'PENDING'
       },
       include: {
@@ -143,15 +146,15 @@ export const createInvoice = async (req, res) => {
 export const updateInvoice = async (req, res) => {
   try {
     const { id } = req.params
-    const { amount, taxAmount, dueDate, notes } = req.body
+    const { amount, taxAmount, dueDate, status } = req.body
     
     const invoice = await prisma.invoice.update({
       where: { id },
       data: {
-        amount: amount ? parseFloat(amount) : undefined,
-        taxAmount: taxAmount ? parseFloat(taxAmount) : undefined,
+        amount: amount !== undefined ? parseFloat(amount) : undefined,
+        taxAmount: taxAmount !== undefined ? parseFloat(taxAmount) : undefined,
         dueDate: dueDate ? new Date(dueDate) : undefined,
-        notes: notes !== undefined ? notes : undefined
+        status: status || undefined
       },
       include: {
         client: { select: { id: true, name: true, email: true, company: true } },

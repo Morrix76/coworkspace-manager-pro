@@ -1,5 +1,11 @@
 import prisma from '../config/database.js'
 
+const resolveClientName = ({ name, firstName, lastName }) => {
+  if (name) return name
+  const parts = [firstName, lastName].filter(Boolean)
+  return parts.length ? parts.join(' ') : undefined
+}
+
 // GET /clients - Lista clienti con filtri e paginazione
 export const getClients = async (req, res) => {
   try {
@@ -7,7 +13,6 @@ export const getClients = async (req, res) => {
       page = 1, 
       limit = 10, 
       search, 
-      segment, 
       sortBy = 'createdAt', 
       sortOrder = 'desc' 
     } = req.query
@@ -15,16 +20,15 @@ export const getClients = async (req, res) => {
     const skip = (parseInt(page) - 1) * parseInt(limit)
     const take = parseInt(limit)
 
-    const where = {
-      organizationId: req.user.organizationId
-    }
+    const where = {}
 
     if (search) {
       where.OR = [
-        { firstName: { contains: search, mode: 'insensitive' } },
-        { lastName: { contains: search, mode: 'insensitive' } },
+        { name: { contains: search, mode: 'insensitive' } },
         { email: { contains: search, mode: 'insensitive' } },
-        { company: { contains: search, mode: 'insensitive' } }
+        { company: { contains: search, mode: 'insensitive' } },
+        { phone: { contains: search, mode: 'insensitive' } },
+        { vatNumber: { contains: search, mode: 'insensitive' } }
       ]
     }
 
@@ -68,10 +72,7 @@ export const getClient = async (req, res) => {
     const { id } = req.params
 
     const client = await prisma.client.findFirst({
-      where: { 
-        id,
-        organizationId: req.user.organizationId
-      },
+      where: { id },
       include: {
         bookings: {
           take: 5,
@@ -111,36 +112,25 @@ export const getClient = async (req, res) => {
 export const createClient = async (req, res) => {
   try {
     const {
-      firstName,
-      lastName,
       email,
       phone,
       company,
+      vatNumber,
       address,
-      city,
-      state,
-      zipCode,
-      country,
       notes,
-      tags = [],
-      preferredContact,
-      marketingOptIn = false,
-      creditLimit,
-      paymentTerms = 30
+      active
     } = req.body
 
-    if (!firstName || !lastName || !email) {
+    const name = resolveClientName(req.body)
+
+    if (!name || !email) {
       return res.status(400).json({ 
-        error: 'First name, last name, and email are required' 
+        error: 'Name and email are required' 
       })
     }
 
-    // Check if email already exists in organization
-    const existingClient = await prisma.client.findFirst({
-      where: {
-        email,
-        organizationId: req.user.organizationId
-      }
+    const existingClient = await prisma.client.findUnique({
+      where: { email }
     })
 
     if (existingClient) {
@@ -151,23 +141,14 @@ export const createClient = async (req, res) => {
 
     const client = await prisma.client.create({
       data: {
-        firstName,
-        lastName,
+        name,
         email,
-        phone,
-        company,
-        address,
-        city,
-        state,
-        zipCode,
-        country,
-        notes,
-        tags: Array.isArray(tags) ? tags.join(',') : tags,
-        preferredContact,
-        marketingOptIn,
-        creditLimit: creditLimit ? parseFloat(creditLimit) : null,
-        paymentTerms: parseInt(paymentTerms),
-        organizationId: req.user.organizationId
+        phone: phone || null,
+        company: company || null,
+        vatNumber: vatNumber || null,
+        address: address || null,
+        notes: notes || null,
+        ...(active !== undefined && { active: Boolean(active) })
       }
     })
 
@@ -183,42 +164,29 @@ export const updateClient = async (req, res) => {
   try {
     const { id } = req.params
     const {
-      firstName,
-      lastName,
       email,
       phone,
       company,
+      vatNumber,
       address,
-      city,
-      state,
-      zipCode,
-      country,
       notes,
-      tags,
-      preferredContact,
-      marketingOptIn,
-      creditLimit,
-      paymentTerms
+      active
     } = req.body
 
-    // Check if client exists and belongs to organization
-    const existingClient = await prisma.client.findFirst({
-      where: {
-        id,
-        organizationId: req.user.organizationId
-      }
+    const name = resolveClientName(req.body)
+
+    const existingClient = await prisma.client.findUnique({
+      where: { id }
     })
 
     if (!existingClient) {
       return res.status(404).json({ error: 'Client not found' })
     }
 
-    // Check email uniqueness if email is being changed
     if (email && email !== existingClient.email) {
       const emailExists = await prisma.client.findFirst({
         where: {
           email,
-          organizationId: req.user.organizationId,
           id: { not: id }
         }
       })
@@ -231,22 +199,14 @@ export const updateClient = async (req, res) => {
     }
 
     const updateData = {}
-    if (firstName !== undefined) updateData.firstName = firstName
-    if (lastName !== undefined) updateData.lastName = lastName
+    if (name !== undefined) updateData.name = name
     if (email !== undefined) updateData.email = email
     if (phone !== undefined) updateData.phone = phone
     if (company !== undefined) updateData.company = company
+    if (vatNumber !== undefined) updateData.vatNumber = vatNumber
     if (address !== undefined) updateData.address = address
-    if (city !== undefined) updateData.city = city
-    if (state !== undefined) updateData.state = state
-    if (zipCode !== undefined) updateData.zipCode = zipCode
-    if (country !== undefined) updateData.country = country
     if (notes !== undefined) updateData.notes = notes
-    if (tags !== undefined) updateData.tags = Array.isArray(tags) ? tags.join(',') : tags
-    if (preferredContact !== undefined) updateData.preferredContact = preferredContact
-    if (marketingOptIn !== undefined) updateData.marketingOptIn = marketingOptIn
-    if (creditLimit !== undefined) updateData.creditLimit = creditLimit ? parseFloat(creditLimit) : null
-    if (paymentTerms !== undefined) updateData.paymentTerms = parseInt(paymentTerms)
+    if (active !== undefined) updateData.active = Boolean(active)
 
     const client = await prisma.client.update({
       where: { id },
@@ -265,25 +225,20 @@ export const deleteClient = async (req, res) => {
   try {
     const { id } = req.params
 
-    // Check if client exists and belongs to organization
-    const client = await prisma.client.findFirst({
-      where: {
-        id,
-        organizationId: req.user.organizationId
-      }
+    const client = await prisma.client.findUnique({
+      where: { id }
     })
 
     if (!client) {
       return res.status(404).json({ error: 'Client not found' })
     }
 
-    // Check if client has active bookings or contracts
     const activeRelations = await prisma.client.findFirst({
       where: { id },
       include: {
         bookings: {
           where: {
-            status: { in: ['CONFIRMED', 'PENDING'] }
+            status: { in: ['CONFIRMED', 'CHECKED_IN'] }
           }
         },
         contracts: {
@@ -322,19 +277,18 @@ export const searchClients = async (req, res) => {
 
     const clients = await prisma.client.findMany({
       where: {
-        organizationId: req.user.organizationId,
         OR: [
-          { firstName: { contains: query, mode: 'insensitive' } },
-          { lastName: { contains: query, mode: 'insensitive' } },
+          { name: { contains: query, mode: 'insensitive' } },
           { email: { contains: query, mode: 'insensitive' } },
-          { company: { contains: query, mode: 'insensitive' } }
+          { company: { contains: query, mode: 'insensitive' } },
+          { phone: { contains: query, mode: 'insensitive' } },
+          { vatNumber: { contains: query, mode: 'insensitive' } }
         ]
       },
       take: parseInt(limit),
       select: {
         id: true,
-        firstName: true,
-        lastName: true,
+        name: true,
         email: true,
         company: true
       }
@@ -352,11 +306,8 @@ export const getClientStats = async (req, res) => {
   try {
     const { id } = req.params
 
-    const client = await prisma.client.findFirst({
-      where: {
-        id,
-        organizationId: req.user.organizationId
-      }
+    const client = await prisma.client.findUnique({
+      where: { id }
     })
 
     if (!client) {
@@ -408,28 +359,23 @@ export const exportClients = async (req, res) => {
     const { format = 'csv' } = req.query
 
     const clients = await prisma.client.findMany({
-      where: {
-        organizationId: req.user.organizationId
-      },
       select: {
-        firstName: true,
-        lastName: true,
+        name: true,
         email: true,
         phone: true,
         company: true,
+        vatNumber: true,
         address: true,
-        city: true,
-        state: true,
-        zipCode: true,
-        country: true,
+        notes: true,
+        active: true,
         createdAt: true
       }
     })
 
     if (format === 'csv') {
-      const csvHeader = 'First Name,Last Name,Email,Phone,Company,Address,City,State,ZIP,Country,Created At\n'
+      const csvHeader = 'Name,Email,Phone,Company,VAT Number,Address,Notes,Active,Created At\n'
       const csvData = clients.map(client => 
-        `"${client.firstName}","${client.lastName}","${client.email}","${client.phone || ''}","${client.company || ''}","${client.address || ''}","${client.city || ''}","${client.state || ''}","${client.zipCode || ''}","${client.country || ''}","${client.createdAt}"`
+        `"${client.name}","${client.email}","${client.phone || ''}","${client.company || ''}","${client.vatNumber || ''}","${client.address || ''}","${client.notes || ''}","${client.active}","${client.createdAt}"`
       ).join('\n')
 
       res.setHeader('Content-Type', 'text/csv')
@@ -457,8 +403,8 @@ export const importClients = async (req, res) => {
 // GET /clients/template - Template per import
 export const getImportTemplate = async (req, res) => {
   try {
-    const csvHeader = 'First Name,Last Name,Email,Phone,Company,Address,City,State,ZIP,Country\n'
-    const csvExample = '"John","Doe","john@example.com","555-1234","Acme Corp","123 Main St","New York","NY","10001","USA"\n'
+    const csvHeader = 'Name,Email,Phone,Company,VAT Number,Address,Notes\n'
+    const csvExample = '"John Doe","john@example.com","555-1234","Acme Corp","IT123456789","123 Main St","VIP client"\n'
     
     res.setHeader('Content-Type', 'text/csv')
     res.setHeader('Content-Disposition', 'attachment; filename="clients_template.csv"')
@@ -475,10 +421,7 @@ export const getClientBookings = async (req, res) => {
     const { id } = req.params
     const { limit = 10, status } = req.query
 
-    const where = {
-      clientId: id,
-      organizationId: req.user.organizationId
-    }
+    const where = { clientId: id }
 
     if (status) {
       where.status = status
@@ -508,10 +451,7 @@ export const getClientContracts = async (req, res) => {
     const { id } = req.params
 
     const contracts = await prisma.contract.findMany({
-      where: {
-        clientId: id,
-        organizationId: req.user.organizationId
-      },
+      where: { clientId: id },
       orderBy: { createdAt: 'desc' }
     })
 
@@ -528,10 +468,7 @@ export const getClientInvoices = async (req, res) => {
     const { id } = req.params
     const { limit = 10, status } = req.query
 
-    const where = {
-      clientId: id,
-      organizationId: req.user.organizationId
-    }
+    const where = { clientId: id }
 
     if (status) {
       where.status = status

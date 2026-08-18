@@ -1,66 +1,121 @@
 import React, { useState, useEffect } from 'react';
 import { Form, Input, Select, InputNumber, Button, Card, message, Spin, Space, Checkbox, Row, Col, Typography } from 'antd';
-import { SaveOutlined, ArrowLeftOutlined, HomeOutlined, TeamOutlined, DesktopOutlined, PhoneOutlined, CalendarOutlined, StarOutlined } from '@ant-design/icons';
+import { SaveOutlined, ArrowLeftOutlined, HomeOutlined, TeamOutlined, DesktopOutlined, CalendarOutlined } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
+import axios from 'axios';
+import { handleDemoRestriction, isDemoRestriction } from '../utils/demoError';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
 const { TextArea } = Input;
 
-const spaceTypes = [
-  { value: 'OFFICE', label: 'Office', icon: <HomeOutlined /> },
-  { value: 'MEETING_ROOM', label: 'Meeting Room', icon: <TeamOutlined /> },
-  { value: 'DESK', label: 'Desk', icon: <DesktopOutlined /> },
-  { value: 'COWORKING', label: 'Coworking', icon: <DesktopOutlined /> },
-  { value: 'PHONE_BOOTH', label: 'Phone Booth', icon: <PhoneOutlined /> },
-  { value: 'EVENT_SPACE', label: 'Event Space', icon: <CalendarOutlined /> },
-  { value: 'COMMON_AREA', label: 'Common Area', icon: <StarOutlined /> },
-];
-const allAmenities = ['WiFi', 'Coffee/Kitchen', 'Projector/Screen', 'Parking', 'Power Outlets', 'Whiteboard', 'Air Conditioning'];
+const API_URL = import.meta.env.VITE_API_URL;
 
-// La funzione ora riceve `onSave` e `spacesData` da App.jsx
-function SpaceForm({ onSave, spacesData }) {
+const authHeaders = () => ({
+  Authorization: `Bearer ${localStorage.getItem('token')}`
+});
+
+const spaceTypeIcons = {
+  OFFICE: <HomeOutlined />,
+  MEETING_ROOM: <TeamOutlined />,
+  COWORKING: <DesktopOutlined />,
+  EVENT_SPACE: <CalendarOutlined />,
+};
+
+const spaceTypeValues = ['OFFICE', 'MEETING_ROOM', 'COWORKING', 'EVENT_SPACE'];
+
+const amenityOptionsConfig = [
+  { value: 'WiFi', key: 'wifi' },
+  { value: 'Coffee/Kitchen', key: 'coffeeKitchen' },
+  { value: 'Projector/Screen', key: 'projectorScreen' },
+  { value: 'Parking', key: 'parking' },
+  { value: 'Power Outlets', key: 'powerOutlets' },
+  { value: 'Whiteboard', key: 'whiteboard' },
+  { value: 'Air Conditioning', key: 'airConditioning' },
+];
+
+function SpaceForm() {
   const [form] = Form.useForm();
   const navigate = useNavigate();
   const { spaceId } = useParams();
   const [loading, setLoading] = useState(false);
   const isEditing = !!spaceId;
+  const { t } = useTranslation();
 
-  const pageTitle = isEditing ? 'Edit Space' : 'Create New Space';
+  const pageTitle = isEditing ? t('spaceForm.editTitle') : t('spaceForm.createTitle');
 
   useEffect(() => {
-    if (isEditing && spacesData) {
-      const spaceToEdit = spacesData.find(s => s.id === parseInt(spaceId, 10));
-      if (spaceToEdit) {
-        form.setFieldsValue({
-            ...spaceToEdit,
-            amenities: spaceToEdit.amenities ? spaceToEdit.amenities.split(',').map(a => a.trim()) : []
-        });
-      }
-    }
-  }, [isEditing, spaceId, form, spacesData]);
+    if (!isEditing) return;
 
-  const handleSubmit = (values) => {
-    setLoading(true);
-    message.loading({ content: 'Saving...', key: 'save' });
-    
-    const payload = {
-        ...values,
-        amenities: values.amenities ? values.amenities.join(', ') : ''
+    const loadSpace = async () => {
+      setLoading(true);
+      try {
+        const { data } = await axios.get(`${API_URL}/spaces/${spaceId}`, {
+          headers: authHeaders()
+        });
+        form.setFieldsValue({
+          name: data.name,
+          type: data.type,
+          description: data.description,
+          capacity: data.capacity,
+          hourlyRate: data.hourlyRate,
+          dailyRate: data.dailyRate,
+          monthlyRate: data.monthlyRate,
+          amenities: Array.isArray(data.amenities) ? data.amenities : [],
+          active: data.active !== false
+        });
+      } catch (error) {
+        if (isDemoRestriction(error) || handleDemoRestriction(error)) return;
+        message.error(error.response?.data?.message || error.response?.data?.error || t('common.errorLoading'));
+      } finally {
+        setLoading(false);
+      }
     };
 
-    if (isEditing) {
-        onSave(parseInt(spaceId, 10), payload); // Passa ID e dati per la modifica
-    } else {
-        onSave(payload); // Passa solo i dati per la creazione
-    }
+    loadSpace();
+  }, [isEditing, spaceId, form, t]);
 
-    setTimeout(() => {
-      message.success({ content: isEditing ? 'Space updated!' : 'Space created!', key: 'save' });
-      setLoading(false);
+  const handleSubmit = async (values) => {
+    setLoading(true);
+    try {
+      const payload = {
+        name: values.name,
+        type: values.type,
+        capacity: values.capacity,
+        hourlyRate: values.hourlyRate,
+        dailyRate: values.dailyRate,
+        monthlyRate: values.monthlyRate,
+        description: values.description,
+        amenities: Array.isArray(values.amenities) ? values.amenities : [],
+        active: values.active
+      };
+
+      if (isEditing) {
+        await axios.put(`${API_URL}/spaces/${spaceId}`, payload, {
+          headers: authHeaders()
+        });
+        message.success(t('spaceForm.updated'));
+      } else {
+        await axios.post(`${API_URL}/spaces`, payload, {
+          headers: authHeaders()
+        });
+        message.success(t('spaceForm.created'));
+      }
+
       navigate('/spaces');
-    }, 500);
+    } catch (error) {
+      if (isDemoRestriction(error) || handleDemoRestriction(error)) return;
+      message.error(error.response?.data?.message || error.response?.data?.error || t('spaceForm.saving'));
+    } finally {
+      setLoading(false);
+    }
   };
+
+  const amenityOptions = amenityOptionsConfig.map(({ value, key }) => ({
+    value,
+    label: t(`enums.amenity.${key}`)
+  }));
 
   return (
     <div className="page-enter">
@@ -70,41 +125,34 @@ function SpaceForm({ onSave, spacesData }) {
             <Button type="text" icon={<ArrowLeftOutlined />} onClick={() => navigate('/spaces')} style={{ fontSize: 20, padding: 0 }} />
             <Title level={2} style={{ margin: 0 }}>{pageTitle}</Title>
           </Space>
-          <Text type="secondary" style={{ marginLeft: 44, fontSize: 16 }}>Fill in the details to configure the workspace.</Text>
+          <Text type="secondary" style={{ marginLeft: 44, fontSize: 16 }}>{t('spaceForm.subtitle')}</Text>
         </Col>
       </Row>
       <Spin spinning={loading}>
         <Form form={form} layout="vertical" onFinish={handleSubmit}>
           <Card style={{ marginBottom: 24 }}>
-            <Title level={4}>Basic Information</Title>
+            <Title level={4}>{t('spaceForm.basicInfo')}</Title>
             <Row gutter={24}>
-              <Col span={12}><Form.Item name="name" label="Space Name" rules={[{ required: true }]}><Input placeholder="e.g., The Innovation Hub" /></Form.Item></Col>
-              <Col span={12}><Form.Item name="type" label="Space Type" rules={[{ required: true }]}><Select placeholder="Select a type">{spaceTypes.map(t => <Option key={t.value} value={t.value}><Space>{t.icon}{t.label}</Space></Option>)}</Select></Form.Item></Col>
+              <Col span={12}><Form.Item name="name" label={t('spaceForm.spaceName')} rules={[{ required: true, message: t('common.required') }]}><Input placeholder={t('spaceForm.spaceNamePlaceholder')} /></Form.Item></Col>
+              <Col span={12}><Form.Item name="type" label={t('spaceForm.spaceType')} rules={[{ required: true, message: t('common.required') }]}><Select placeholder={t('spaceForm.selectType')}>{spaceTypeValues.map(value => <Option key={value} value={value}><Space>{spaceTypeIcons[value]}{t(`enums.spaceType.${value}`)}</Space></Option>)}</Select></Form.Item></Col>
             </Row>
-            <Form.Item name="description" label="Description"><TextArea rows={3} /></Form.Item>
+            <Form.Item name="description" label={t('spaceForm.description')}><TextArea rows={3} /></Form.Item>
           </Card>
           <Card style={{ marginBottom: 24 }}>
-            <Title level={4}>Details & Pricing</Title>
+            <Title level={4}>{t('spaceForm.detailsPricing')}</Title>
             <Row gutter={24}>
-              <Col span={8}><Form.Item name="capacity" label="Capacity (people)" rules={[{ required: true }]}><InputNumber min={1} style={{ width: '100%' }} /></Form.Item></Col>
-              <Col span={8}><Form.Item name="hourlyRate" label="Hourly Rate ($)"><InputNumber min={0} step={0.5} style={{ width: '100%' }} /></Form.Item></Col>
-              <Col span={8}><Form.Item name="dailyRate" label="Daily Rate ($)"><InputNumber min={0} step={1} style={{ width: '100%' }} /></Form.Item></Col>
+              <Col span={6}><Form.Item name="capacity" label={t('spaceForm.capacity')} rules={[{ required: true, message: t('common.required') }]}><InputNumber min={1} style={{ width: '100%' }} /></Form.Item></Col>
+              <Col span={6}><Form.Item name="hourlyRate" label={t('spaceForm.hourlyRate')} rules={[{ required: true, message: t('common.required') }]}><InputNumber min={0} step={0.5} style={{ width: '100%' }} /></Form.Item></Col>
+              <Col span={6}><Form.Item name="dailyRate" label={t('spaceForm.dailyRate')}><InputNumber min={0} step={1} style={{ width: '100%' }} /></Form.Item></Col>
+              <Col span={6}><Form.Item name="monthlyRate" label={t('spaceForm.monthlyRate')}><InputNumber min={0} step={1} style={{ width: '100%' }} /></Form.Item></Col>
             </Row>
           </Card>
           <Card style={{ marginBottom: 24 }}>
-            <Title level={4}>Location</Title>
-             <Row gutter={24}>
-              <Col span={8}><Form.Item name="building" label="Building"><Input /></Form.Item></Col>
-              <Col span={8}><Form.Item name="floor" label="Floor"><Input /></Form.Item></Col>
-              <Col span={8}><Form.Item name="room" label="Room/Number"><Input /></Form.Item></Col>
-            </Row>
+            <Title level={4}>{t('spaceForm.amenitiesStatus')}</Title>
+            <Form.Item name="amenities" label={t('spaceForm.availableAmenities')}><Checkbox.Group options={amenityOptions} /></Form.Item>
+            <Form.Item name="active" valuePropName="checked" initialValue={true}><Checkbox>{t('spaceForm.isActive')}</Checkbox></Form.Item>
           </Card>
-          <Card style={{ marginBottom: 24 }}>
-            <Title level={4}>Amenities & Status</Title>
-            <Form.Item name="amenities" label="Available Amenities"><Checkbox.Group options={allAmenities} /></Form.Item>
-            <Form.Item name="isActive" valuePropName="checked" initialValue={true}><Checkbox>This space is active and bookable</Checkbox></Form.Item>
-          </Card>
-          <Row justify="end"><Space><Button size="large" onClick={() => navigate('/spaces')}>Cancel</Button><Button type="primary" size="large" htmlType="submit" icon={<SaveOutlined />} loading={loading}>{isEditing ? 'Save Changes' : 'Create Space'}</Button></Space></Row>
+          <Row justify="end"><Space><Button size="large" onClick={() => navigate('/spaces')}>{t('common.cancel')}</Button><Button type="primary" size="large" htmlType="submit" icon={<SaveOutlined />} loading={loading}>{isEditing ? t('spaceForm.saveChanges') : t('spaceForm.createSpace')}</Button></Space></Row>
         </Form>
       </Spin>
     </div>
@@ -112,4 +160,3 @@ function SpaceForm({ onSave, spacesData }) {
 }
 
 export default SpaceForm;
-
