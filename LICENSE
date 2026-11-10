@@ -1,14 +1,529 @@
-Copyright (c) 2026 Francesco Ciardo. All rights reserved.
+# CoworkSpace Manager Pro
 
-This software and its source code are proprietary and confidential.
+### Complete Coworking Space Management SaaS Platform
 
-No permission is granted to use, copy, modify, merge, publish, distribute, 
-sublicense, or sell copies of this software, in whole or in part, without 
-prior written permission from the copyright holder.
+![React](https://img.shields.io/badge/React-18-149ECA?logo=react&logoColor=white)
+![JavaScript](https://img.shields.io/badge/JavaScript-ES6+-F7DF1E?logo=javascript&logoColor=black)
+![Node.js](https://img.shields.io/badge/Node.js-Express-339933?logo=node.js&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/Database-PostgreSQL-4169E1?logo=postgresql&logoColor=white)
+![Prisma](https://img.shields.io/badge/ORM-Prisma-2D3748?logo=prisma)
+![License](https://img.shields.io/badge/License-Proprietary-red)
+![Status](https://img.shields.io/badge/Status-Demo%20%2F%20Development-orange)
 
-Unauthorized copying, distribution, or use of this software, via any medium, 
-is strictly prohibited.
+> Manage coworking spaces, bookings, clients, contracts, invoices, and business analytics from a centralized management platform.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR 
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+![CoworkSpace Manager Pro Dashboard](screenshots/dashboard.png)
+
+**Landing Page:** [coworkspace-landing.vercel.app](https://coworkspace-landing.vercel.app)
+
+---
+
+## 🎯 Overview
+
+**CoworkSpace Manager Pro** is a SaaS application designed to simplify the daily operations of coworking spaces and shared office facilities.
+
+Managing a coworking business involves coordinating multiple activities:
+
+- Workspace availability and reservations.
+- Customer relationships and information.
+- Contracts and service agreements.
+- Invoice generation and payment records.
+- Financial reporting and business performance.
+
+CoworkSpace Manager Pro brings these operations together within a centralized web application.
+
+The project explores how modern web technologies can improve operational efficiency, reduce repetitive administrative tasks, and provide better visibility into business activity.
+
+### The Goal
+
+**Manage Spaces → Handle Bookings → Organize Clients → Track Billing → Analyze Performance**
+
+---
+
+## ✨ Features
+
+### 📊 Management Dashboard
+
+A centralized dashboard providing an overview of coworking business operations.
+
+- Revenue indicators.
+- Daily booking statistics.
+- Customer information.
+- Available and active spaces.
+- Active contracts.
+- Pending invoices.
+- Business performance indicators.
+
+The dashboard retrieves information through backend API endpoints.
+
+### 🏢 Workspace Management
+
+Manage different types of shared working environments.
+
+Supported workspace categories include:
+
+- Private offices.
+- Meeting rooms.
+- Coworking desks.
+- Event spaces.
+
+**Management capabilities:**
+
+- Create and update workspace records.
+- Configure capacity and pricing.
+- Set hourly, daily, and monthly rates.
+- Organize available amenities.
+- Track workspace availability and status.
+
+### 📅 Booking Management
+
+A reservation management system for coworking facilities.
+
+- Create and manage bookings.
+- Associate bookings with clients and spaces.
+- Configure reservation dates and times.
+- Check workspace availability.
+- Track booking status.
+- Manage check-in and check-out.
+- View booking statistics.
+
+The backend provides dedicated reservation management endpoints.
+
+### 👥 Customer Relationship Management
+
+A CRM module designed to organize customer information and related business activities.
+
+- Customer profiles.
+- Contact details.
+- Company information.
+- VAT identification information.
+- Booking relationships.
+- Contract associations.
+- Customer activity records.
+
+The objective is to make customer data accessible and manageable from a single interface.
+
+### 📝 Contract Management
+
+A dedicated module for managing coworking service agreements.
+
+- Create and organize contracts.
+- Associate agreements with clients.
+- Store contract terms.
+- Track contract dates.
+- Monitor agreement status.
+- Manage contract records.
+
+### 💰 Billing & Invoice Management
+
+An integrated invoicing module designed to support administrative workflows.
+
+- Create invoice records.
+- Associate invoices with customers.
+- Link invoices to bookings.
+- Calculate invoice amounts and taxes.
+- Track payment status.
+- Identify pending and overdue invoices.
+- View billing statistics.
+
+**Note:** Invoice management does not imply active payment processing. The project is currently intended for demonstration and development.
+
+### 📈 Reporting & Analytics
+
+Business reporting components built around operational data.
+
+- Revenue analysis.
+- Occupancy reporting.
+- Booking statistics.
+- Customer activity analysis.
+- Workspace performance.
+- Date-based reporting.
+- Charts and visualizations.
+- Reporting export endpoint.
+
+These components help operators evaluate business activity and identify operational trends.
+
+### 🔐 Authentication & Access Control
+
+- User authentication using JWT.
+- Password hashing with bcryptjs.
+- Protected application routes.
+- Role-based authorization.
+- Administrative and operational user roles.
+
+Supported roles in the database include:
+
+- Administrator.
+- Manager.
+- Receptionist.
+- Maintenance.
+
+### 🌍 Multilingual Interface
+
+The frontend includes internationalization support using i18next and React i18next.
+
+---
+
+## 🛠️ Technology Stack
+
+### Frontend
+
+| Technology | Purpose |
+|---|---|
+| React 18 | User interface |
+| JavaScript | Application logic |
+| Vite | Development and build |
+| Ant Design | UI components |
+| Redux Toolkit | Application state management |
+| React Router | Navigation |
+| Recharts | Charts and visualizations |
+| FullCalendar | Calendar components |
+| i18next | Internationalization |
+| Axios | HTTP requests |
+
+### Backend
+
+| Technology | Purpose |
+|---|---|
+| Node.js | JavaScript runtime |
+| Express.js | REST API |
+| Prisma ORM | Database access |
+| PostgreSQL | Data persistence |
+| JWT | Authentication |
+| bcryptjs | Password hashing |
+| Helmet | HTTP security headers |
+| Express Rate Limit | Request rate limiting |
+| Nodemailer | Email integration components |
+
+---
+
+## 🏗️ System Architecture
+
+CoworkSpace Manager Pro follows a frontend-backend architecture.
+
+### Application Flow
+
+**React Interface → REST API → Business Logic → Prisma ORM → PostgreSQL**
+
+### Frontend Layer
+
+Responsible for:
+
+- User interaction.
+- Navigation and authentication interfaces.
+- Workspace and booking management screens.
+- CRM and billing views.
+- Dashboard and analytics visualization.
+
+### Backend Layer
+
+Responsible for:
+
+- Authentication and authorization.
+- REST API endpoints.
+- Business logic.
+- Booking management.
+- Customer and contract operations.
+- Invoice and reporting services.
+- Database access.
+
+### Database Layer
+
+The PostgreSQL database stores the business entities and their relationships.
+
+Prisma is used to define the data model and interact with the database.
+
+---
+
+## 🗄️ Database Structure
+
+The Prisma schema defines the following primary entities:
+
+| Entity | Purpose |
+|---|---|
+| User | Authentication and access roles |
+| Space | Offices, desks, rooms, and event spaces |
+| Client | Customer information |
+| Booking | Workspace reservations |
+| Contract | Customer agreements |
+| Invoice | Billing records |
+| Payment | Payment information and status |
+
+Relationships between these entities support coordinated coworking management workflows.
+
+---
+
+## 🖼️ Application Screenshots
+
+### Management Dashboard
+
+![Dashboard](screenshots/dashboard.png)
+
+### Workspace Management
+
+![Spaces](screenshots/spaces.png)
+
+### Booking Calendar
+
+![Bookings](screenshots/bookings.png)
+
+### Client Management
+
+![Clients](screenshots/clients.png)
+
+### Contract Management
+
+![Contracts](screenshots/contracts.png)
+
+### Billing & Invoices
+
+![Billing](screenshots/billing.png)
+
+### Reports & Analytics
+
+![Reports](screenshots/reports.png)
+
+---
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+Before running the application, install:
+
+- Node.js and npm.
+- PostgreSQL.
+- Git.
+
+### 1. Clone the Repository
+
+```bash
+git clone https://github.com/Morrix76/coworkspace-manager-pro.git
+cd coworkspace-manager-pro
+```
+
+### 2. Install Backend Dependencies
+
+```bash
+cd backend
+npm install
+```
+
+### 3. Configure Environment Variables
+
+Create a `.env` file inside the `backend` directory.
+
+Example:
+
+```env
+DATABASE_URL="postgresql://user:password@localhost:5432/coworkspace"
+JWT_SECRET="replace_with_a_strong_random_secret"
+PORT=5000
+DEMO_MODE=true
+```
+
+Replace the database connection information and JWT secret with your own values.
+
+**Security:** Never commit private credentials or production secrets.
+
+### 4. Initialize the Database
+
+Generate the Prisma client:
+
+```bash
+npx prisma generate
+```
+
+Apply the database schema through Prisma Migrate:
+
+```bash
+npx prisma migrate dev
+```
+
+Populate the local database with demonstration data:
+
+```bash
+npm run db:seed
+```
+
+### 5. Start the Backend
+
+```bash
+npm run dev
+```
+
+The backend runs on:
+
+`http://localhost:5000`
+
+### 6. Configure the Frontend
+
+Open another terminal:
+
+```bash
+cd frontend
+npm install
+```
+
+Create a `.env` file in the frontend directory:
+
+```env
+VITE_API_URL=http://localhost:5000/api
+```
+
+### 7. Start the Frontend
+
+```bash
+npm run dev
+```
+
+Open the application at:
+
+`http://localhost:3000`
+
+---
+
+## 🔑 Demo Access
+
+The project includes a database seed script for generating demonstration records.
+
+The seed configuration creates:
+
+- An administrator account.
+- Three example workspaces.
+- A demonstration client.
+
+The administrator account is intended for local testing only.
+
+**Important:** Default seeded credentials must be replaced before exposing a deployment to real users.
+
+### Demo Mode
+
+The backend includes a configurable demonstration mode.
+
+When enabled, it can:
+
+- Restrict editing and deletion operations.
+- Limit the creation of certain records.
+- Allow visitors to explore application information.
+
+This mode supports product evaluation without providing unrestricted access to business operations.
+
+---
+
+## 🔌 REST API
+
+The Express backend exposes endpoints organized around the application's business domains.
+
+| Endpoint | Purpose |
+|---|---|
+| `/api/auth` | Authentication |
+| `/api/spaces` | Workspace management |
+| `/api/bookings` | Booking operations |
+| `/api/clients` | Customer management |
+| `/api/contracts` | Contract management |
+| `/api/billing` | Billing and invoices |
+| `/api/reports` | Analytics and reporting |
+| `/test` | Backend connectivity check |
+
+Protected routes require valid authentication.
+
+Some operations are restricted to specific user roles.
+
+---
+
+## 🧪 Development Methodology
+
+CoworkSpace Manager Pro was developed through an AI-assisted software development workflow.
+
+My role focuses on the full development process, from identifying business requirements to validating application behavior.
+
+### My Workflow
+
+**1. Problem Analysis**
+
+Understanding the operational challenges of managing shared workspaces.
+
+**2. Requirements Definition**
+
+Defining the features needed for reservations, clients, contracts, and financial administration.
+
+**3. Architecture Evaluation**
+
+Evaluating frontend, backend, database, and integration choices with AI assistance.
+
+**4. AI-Assisted Implementation**
+
+Coordinating software development using tools such as Claude, Cursor, and ChatGPT.
+
+**5. Testing & Debugging**
+
+Reviewing application behavior, investigating errors, and verifying implemented functionality.
+
+**6. Continuous Improvement**
+
+Refining the product through testing, technical review, and iterative development.
+
+AI supports code generation and technical analysis, while I guide the development process, evaluate implementation decisions, and verify outcomes.
+
+---
+
+## 🔭 Roadmap
+
+Future development priorities include:
+
+- [ ] Improve automated test coverage.
+- [ ] Expand reservation management capabilities.
+- [ ] Strengthen contract automation.
+- [ ] Improve billing workflows.
+- [ ] Expand reporting and analytics.
+- [ ] Improve deployment configuration.
+- [ ] Strengthen application security.
+- [ ] Improve scalability for multiple coworking locations.
+- [ ] Prepare the application for production validation.
+
+These are development objectives, not completed functionality.
+
+---
+
+## ⚠️ Project Status & Limitations
+
+**CoworkSpace Manager Pro is currently a demonstration and development project.**
+
+The repository contains implemented modules for coworking management, booking operations, client records, contracts, invoices, and reporting.
+
+However:
+
+- Demonstration data is used for evaluation.
+- Some operations are restricted in demo mode.
+- Real payment processing is not guaranteed.
+- Production security and reliability require additional validation.
+- Operational deployment requires proper database, authentication, and infrastructure configuration.
+
+The project demonstrates a SaaS architecture and integrated business management workflows. It should not be considered production-ready without further testing.
+
+---
+
+## 📄 License
+
+This project is proprietary.
+
+**Copyright © 2026 Francesco Ciardo. All rights reserved.**
+
+See the [LICENSE](LICENSE) file for details.
+
+---
+
+## 👨‍💻 Author
+
+**Francesco Ciardo**
+
+AI Builder | AI-Assisted Software Development | AI Engineering
+
+- **GitHub:** [Morrix76](https://github.com/Morrix76)
+- **LinkedIn:** [Professional Profile](https://linkedin.com/in/dias-ai)
+- **Website:** [DIAS AI](https://diasai.xyz/)
+
+---
+
+*Building practical business software through AI-assisted development, structured problem-solving, and continuous improvement.*
