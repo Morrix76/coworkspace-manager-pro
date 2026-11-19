@@ -14,6 +14,9 @@
     "success": "Accesso effettuato",
     "error": "Errore di accesso"
   },
+  "auth": {
+    "sessionExpired": "Sessione scaduta. Effettua di nuovo l'accesso."
+  },
   "nav": {
     "brand": "CoworkSpace Pro",
     "home": "Home",

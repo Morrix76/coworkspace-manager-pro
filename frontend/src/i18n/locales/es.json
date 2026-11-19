@@ -14,6 +14,9 @@
     "success": "Inicio de sesión correcto",
     "error": "Error de acceso"
   },
+  "auth": {
+    "sessionExpired": "Tu sesión ha expirado. Inicia sesión de nuevo."
+  },
   "nav": {
     "brand": "CoworkSpace Pro",
     "home": "Inicio",
